@@ -3,14 +3,14 @@
 @section('title', $project->name . ' - Kanban Board')
 
 @push('styles')
-{{-- CSS Tambahan untuk Tampilan Kanban yang Rapi --}}
+{{-- CSS Tambahan untuk Tampilan Kanban --}}
 <style>
     .kanban-board-container {
         display: flex;
         overflow-x: auto;
         gap: 1.5rem;
         padding-bottom: 1rem;
-        height: calc(100vh - 200px); /* Sesuaikan tinggi agar pas di layar */
+        height: calc(100vh - 200px);
     }
     .kanban-column {
         min-width: 300px;
@@ -24,31 +24,32 @@
         overflow-y: auto;
         min-height: 100px; /* Area drop minimal */
     }
-    /* Styling Scrollbar agar tipis & cantik */
+    /* Scrollbar Cantik */
     .kanban-tasks::-webkit-scrollbar { width: 6px; }
     .kanban-tasks::-webkit-scrollbar-track { background: transparent; }
     .kanban-tasks::-webkit-scrollbar-thumb { background: #d3d3d3; border-radius: 3px; }
     
-    /* Efek saat Dragging */
-    .gu-mirror { position: fixed !important; margin: 0 !important; z-index: 9999 !important; opacity: 0.8; }
-    .gu-hide { display: none !important; }
-    .gu-transit { opacity: 0.2; }
-    .task-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.2s; }
+    /* Efek Dragging SortableJS */
+    .sortable-ghost { opacity: 0.4; background-color: #f0f0f0; border: 2px dashed #ccc; } 
+    .sortable-drag { cursor: grabbing; opacity: 1; background: #fff; box-shadow: 0 5px 15px rgba(0,0,0,0.15); transform: rotate(2deg); }
+    
+    .task-card { transition: transform 0.2s, box-shadow 0.2s; }
+    .task-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
 </style>
 @endpush
 
 @section('content')
 <div class="container-fluid h-100">
     
-    {{-- ALERT PESAN SUKSES/ERROR --}}
-    <div id="alert-container">
-        @if(session('success'))
-            <div class="alert alert-success alert-dismissible" role="alert">
-                {{ session('success') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        @endif
-    </div>
+    {{-- ALERT CONTAINER (Untuk Feedback AJAX) --}}
+    <div id="alert-container" style="position: fixed; top: 20px; right: 20px; z-index: 9999;"></div>
+
+    @if(session('success'))
+        <div class="alert alert-success alert-dismissible mb-3" role="alert">
+            {{ session('success') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
 
     {{-- HEADER PROJECT --}}
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -85,21 +86,21 @@
     </div>
 
     {{-- KANBAN BOARD AREA --}}
-    <div class="kanban-board-container">
+    <div class="kanban-board-container" id="kanban-wrapper">
         
         {{-- LOOPING KOLOM --}}
         @foreach($project->columns as $column)
-        <div class="kanban-column" data-id="{{ $column->id }}">
+        <div class="kanban-column" id="column-wrapper-{{ $column->id }}">
             <div class="card h-100 shadow-sm border-0 bg-label-secondary">
                 
                 {{-- HEADER KOLOM --}}
                 <div class="card-header d-flex justify-content-between align-items-center p-3">
                     <div class="d-flex align-items-center gap-2">
                         <h6 class="m-0 fw-bold text-uppercase fs-7">{{ $column->name }}</h6>
-                        <span class="badge bg-white text-primary rounded-pill">{{ $column->tasks->count() }}</span>
+                        <span class="badge bg-white text-primary rounded-pill task-count-badge">{{ $column->tasks->count() }}</span>
                     </div>
                     
-                    {{-- DROPDOWN HAPUS --}}
+                    {{-- DROPDOWN MENU --}}
                     <div class="dropdown">
                         <button class="btn p-0" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bx bx-dots-vertical-rounded"></i>
@@ -114,26 +115,28 @@
                     </div>
                 </div>
 
-                {{-- BODY KOLOM (TASK LIST - DRAGGABLE) --}}
+                {{-- BODY KOLOM (TASK LIST) --}}
                 <div class="card-body p-2 kanban-tasks" id="col-{{ $column->id }}" data-column-id="{{ $column->id }}">
                     @foreach($column->tasks as $task)
                         <div class="card shadow-sm border bg-white cursor-pointer task-card mb-2" 
+                             id="card-task-{{ $task->id }}"
                              data-task-id="{{ $task->id }}" 
                              onclick="openTaskDetail({{ $task->id }})">
                              
                             <div class="card-body p-3">
                                 <div class="d-flex justify-content-between mb-2">
+                                    {{-- Badge Priority --}}
                                     @php
-                                        $badge = match($task->priority) {
+                                        $badgeClass = match($task->priority) {
                                             'high' => 'bg-label-danger',
                                             'medium' => 'bg-label-warning',
                                             default => 'bg-label-info'
                                         };
                                     @endphp
-                                    <span class="badge {{ $badge }} rounded-pill" style="font-size: 0.7rem;">{{ ucfirst($task->priority) }}</span>
+                                    <span class="badge {{ $badgeClass }} rounded-pill priority-badge" style="font-size: 0.7rem;">{{ ucfirst($task->priority) }}</span>
                                 </div>
 
-                                <h6 class="mb-2 text-dark">{{ $task->title }}</h6>
+                                <h6 class="mb-2 text-dark task-title">{{ $task->title }}</h6>
                                 
                                 <div class="d-flex align-items-center justify-content-between mt-3">
                                     <small class="text-muted">
@@ -141,14 +144,17 @@
                                     </small>
                                     
                                     <div class="d-flex align-items-center gap-2">
-                                        @if($task->comments_count > 0)
-                                            <small class="text-muted"><i class='bx bx-message-rounded'></i> {{ $task->comments_count }}</small>
-                                        @endif
-                                        @if($task->assigned_to)
-                                            <div class="avatar avatar-xs">
+                                        {{-- Indikator Komentar --}}
+                                        <small class="text-muted comment-indicator" style="{{ $task->comments_count > 0 ? '' : 'display:none' }}">
+                                            <i class='bx bx-message-rounded'></i> <span class="comment-count">{{ $task->comments_count }}</span>
+                                        </small>
+                                        
+                                        {{-- Avatar Assignee --}}
+                                        <div class="avatar avatar-xs assignee-avatar" style="{{ $task->assigned_to ? '' : 'display:none' }}">
+                                            @if($task->assigned_to)
                                                 <img src="{{ $task->assignee->avatar ? asset('storage/'.$task->assignee->avatar) : asset('assets/img/avatars/1.png') }}" class="rounded-circle" style="object-fit: cover;">
-                                            </div>
-                                        @endif
+                                            @endif
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -156,7 +162,7 @@
                     @endforeach
                 </div>
 
-                {{-- FOOTER (ADD TASK) --}}
+                {{-- FOOTER --}}
                 <div class="card-footer p-2 bg-transparent border-top-0">
                     <button class="btn btn-outline-primary btn-sm w-100 fw-semibold" onclick="openAddTaskModal({{ $column->id }})">
                         <i class="bx bx-plus"></i> Tambah Tugas
@@ -166,13 +172,13 @@
         </div>
         @endforeach
 
-        {{-- INPUT KOLOM BARU (MANUAL FIX) --}}
+        {{-- KOLOM INPUT BARU --}}
         <div style="min-width: 300px;">
-            <div class="card shadow-none bg-transparent border-2 border-dashed">
+            <div class="card shadow-none bg-transparent border-2 border-dashed h-100 d-flex justify-content-start">
                 <div class="card-body p-3">
                     <div class="input-group">
                         <input type="text" class="form-control" id="colNameInput" placeholder="Nama Kolom Baru...">
-                        <button class="btn btn-primary" type="button" onclick="submitColumnManual()">
+                        <button class="btn btn-primary" type="button" onclick="submitColumnManual(this)">
                             <i class="bx bx-plus"></i>
                         </button>
                     </div>
@@ -234,44 +240,69 @@
     </div>
 </div>
 
-{{-- 2. MODAL DETAIL TASK (EDIT, COMMENT, ATTACH) --}}
+{{-- 2. MODAL DETAIL TASK (EDIT & DISKUSI) --}}
 <div class="modal fade" id="taskDetailModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
+        <div class="modal-content" style="min-height: 500px;">
+            <div class="modal-header border-bottom">
                 <h5 class="modal-title">Detail Tugas</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
-                <div class="row h-100">
-                    {{-- KIRI: EDIT FORM & CHAT --}}
-                    <div class="col-md-8 border-end">
-                        <form id="formEditTask" method="POST">
-                            @csrf @method('PUT')
+            <div class="modal-body p-0">
+                <div class="row g-0 h-100">
+                    
+                    {{-- KIRI: FORM EDIT & KOMENTAR --}}
+                    <div class="col-md-8 p-4 border-end">
+                        {{-- Form Edit AJAX --}}
+                        <form id="formEditTask" onsubmit="updateTaskAjax(event)">
                             <div class="mb-3">
-                                <label class="form-label text-muted small">Judul</label>
-                                <input type="text" name="title" id="detailTitle" class="form-control fw-bold" required>
+                                <label class="form-label text-muted small fw-bold text-uppercase">Judul</label>
+                                <input type="text" name="title" id="detailTitle" class="form-control fw-bold text-dark" required>
                             </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small fw-bold text-uppercase">Prioritas</label>
+                                    <select name="priority" id="detailPriority" class="form-select form-select-sm">
+                                        <option value="low">Low</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="high">High</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small fw-bold text-uppercase">Assignee</label>
+                                    <select name="assigned_to" id="detailAssigneeInput" class="form-select form-select-sm">
+                                        <option value="">Unassigned</option>
+                                        @foreach($project->members as $member)
+                                            <option value="{{ $member->id }}">{{ $member->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            </div>
+
                             <div class="mb-3">
-                                <label class="form-label text-muted small">Deskripsi</label>
-                                <textarea name="description" id="detailDescription" class="form-control" rows="3"></textarea>
+                                <label class="form-label text-muted small fw-bold text-uppercase">Deskripsi</label>
+                                <textarea name="description" id="detailDescription" class="form-control" rows="3" placeholder="Tambahkan deskripsi detail..."></textarea>
                             </div>
-                            <div class="text-end mb-3">
-                                <button type="submit" class="btn btn-primary btn-sm">Simpan Perubahan</button>
+
+                            <div class="d-flex justify-content-end mb-4">
+                                <button type="submit" class="btn btn-primary btn-sm" id="btnSaveTask">
+                                    <i class="bx bx-save"></i> Simpan Perubahan
+                                </button>
                             </div>
                         </form>
 
-                        <hr>
+                        <hr class="my-4">
                         
-                        {{-- KOMENTAR AREA --}}
-                        <div class="d-flex flex-column" style="height: 300px;">
-                            <label class="form-label fw-bold"><i class='bx bx-chat'></i> Diskusi</label>
-                            <div id="commentList" class="flex-grow-1 mb-2 p-2 bg-light rounded" style="overflow-y: auto;">
-                                {{-- Komentar dimuat via AJAX --}}
+                        {{-- Area Diskusi --}}
+                        <div>
+                            <h6 class="fw-bold mb-3"><i class='bx bx-chat'></i> Diskusi</h6>
+                            <div id="commentList" class="bg-light rounded p-3 mb-3" style="max-height: 250px; overflow-y: auto;">
+                                {{-- Komentar dimuat via JS --}}
                             </div>
                             <div class="d-flex gap-2">
-                                <input type="text" id="commentInput" class="form-control form-control-sm" placeholder="Tulis komentar...">
-                                <button type="button" class="btn btn-primary btn-sm" onclick="sendComment()">
+                                <input type="text" id="commentInput" class="form-control" placeholder="Tulis komentar..." onkeypress="if(event.key === 'Enter') sendComment()">
+                                <button type="button" class="btn btn-primary" onclick="sendComment()">
                                     <i class='bx bx-send'></i>
                                 </button>
                             </div>
@@ -279,38 +310,30 @@
                     </div>
 
                     {{-- KANAN: META DATA & ATTACHMENT --}}
-                    <div class="col-md-4">
-                        <div class="mb-3">
-                            <label class="form-label small text-muted">Prioritas</label>
-                            <select id="detailPriority" class="form-select form-select-sm" disabled>
-                                <option value="low">Low</option>
-                                <option value="medium">Medium</option>
-                                <option value="high">High</option>
-                            </select>
-                            <small class="text-muted" style="font-size: 10px;">*Edit di panel kiri untuk mengubah</small>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label class="form-label small text-muted">Assignee</label>
-                            <input type="text" id="detailAssignee" class="form-control form-control-sm" readonly>
-                        </div>
-
-                        <hr>
-
-                        <div class="mb-3">
-                            <label class="form-label small fw-bold">Lampiran</label>
-                            <ul class="list-group list-group-flush mb-2" id="attachmentList" style="font-size: 0.8rem;"></ul>
-                            <div class="d-flex gap-1">
-                                <input type="file" id="fileInput" class="form-control form-control-sm">
-                                <button class="btn btn-secondary btn-sm" onclick="uploadFile()"><i class='bx bx-upload'></i></button>
+                    <div class="col-md-4 p-4 bg-light">
+                        {{-- Attachment Section --}}
+                        <div class="mb-4">
+                            <label class="form-label small fw-bold text-uppercase text-muted">Lampiran</label>
+                            <ul class="list-group list-group-flush mb-2 bg-white rounded shadow-sm" id="attachmentList"></ul>
+                            
+                            <div class="mt-2">
+                                <label for="fileInput" class="btn btn-outline-secondary btn-sm w-100 text-start">
+                                    <i class='bx bx-paperclip me-1'></i> Upload File
+                                </label>
+                                <input type="file" id="fileInput" class="d-none" onchange="uploadFile()">
                             </div>
-                            <div id="uploadStatus" class="text-muted small mt-1"></div>
+                            <div id="uploadStatus" class="text-muted small mt-1 fst-italic"></div>
                         </div>
                         
+                        <div class="mb-4">
+                            <label class="form-label small fw-bold text-uppercase text-muted">Tenggat Waktu</label>
+                            <input type="text" class="form-control form-control-sm bg-white" id="detailDueDateDisplay" readonly>
+                        </div>
+
                         <hr>
                         <form id="formDeleteTask" method="POST">
                             @csrf @method('DELETE')
-                            <button type="submit" class="btn btn-outline-danger btn-sm w-100" onclick="return confirm('Hapus tugas ini?')">
+                            <button type="submit" class="btn btn-label-danger btn-sm w-100" onclick="return confirm('Yakin ingin menghapus tugas ini? Tindakan tidak bisa dibatalkan.')">
                                 <i class='bx bx-trash'></i> Hapus Tugas
                             </button>
                         </form>
@@ -329,11 +352,10 @@
                 <h5 class="modal-title">Undang Anggota</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            {{-- Pastikan Route ini ada di web.php --}}
             <form action="{{ route('projects.members.add', $project->id) }}" method="POST">
                 @csrf
                 <div class="modal-body">
-                    <input type="email" name="email" class="form-control mb-2" placeholder="Email teman..." required>
+                    <input type="email" name="email" class="form-control mb-3" placeholder="Email pengguna..." required>
                     <button class="btn btn-primary w-100">Kirim Undangan</button>
                 </div>
             </form>
@@ -342,25 +364,32 @@
 </div>
 
 @push('scripts')
-{{-- Library Drag & Drop --}}
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
 <script>
     let currentTaskId = null;
-    let csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
-    // 1. CREATE COLUMN MANUAL (Agar tidak error JSON)
-    window.submitColumnManual = function() {
-        const nameInput = document.getElementById('colNameInput');
-        const btn = nameInput.nextElementSibling;
+    // 0. INISIALISASI TOOLTIP BOOTSTRAP
+    document.addEventListener('DOMContentLoaded', function () {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        })
+    });
+
+    // 1. TAMBAH KOLOM MANUAL (AJAX)
+    window.submitColumnManual = function(btn) {
+        const input = document.getElementById('colNameInput');
+        const name = input.value.trim();
         
-        if(!nameInput.value.trim()) { alert("Nama kosong!"); return; }
+        if(!name) { alert("Nama kolom tidak boleh kosong!"); return; }
 
-        btn.innerHTML = '...';
         btn.disabled = true;
+        btn.innerHTML = '<i class="bx bx-loader-alt bx-spin"></i>';
 
         let formData = new FormData();
-        formData.append('name', nameInput.value);
+        formData.append('name', name);
         formData.append('project_id', "{{ $project->id }}");
 
         fetch("{{ route('columns.store') }}", {
@@ -370,34 +399,46 @@
         })
         .then(res => res.json())
         .then(data => {
-            if(data.success) location.reload();
-            else { alert("Gagal"); btn.innerHTML = '<i class="bx bx-plus"></i>'; btn.disabled = false; }
+            if(data.success) {
+                location.reload(); // Reload agar struktur blade ter-render sempurna
+            } else {
+                alert("Gagal membuat kolom.");
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bx bx-plus"></i>';
+            }
         });
     };
 
-    // 2. DELETE COLUMN
+    // 2. HAPUS KOLOM (AJAX + DOM Remove)
     document.addEventListener('click', function(e) {
         if (e.target.closest('.delete-column-btn')) {
             e.preventDefault();
             const btn = e.target.closest('.delete-column-btn');
-            if(!confirm("Hapus kolom ini?")) return;
+            const colId = btn.getAttribute('data-id');
+            const colWrapper = document.getElementById(`column-wrapper-${colId}`);
+
+            if(!confirm("Yakin hapus kolom ini beserta isinya?")) return;
             
-            fetch(`/columns/${btn.getAttribute('data-id')}`, {
+            fetch(`/columns/${colId}`, {
                 method: 'DELETE',
                 headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' }
             }).then(res => res.json()).then(data => {
-                if(data.success) location.reload();
+                if(data.success && colWrapper) {
+                    colWrapper.remove(); // Hapus elemen tanpa reload
+                    showAlert('Kolom berhasil dihapus', 'success');
+                }
             });
         }
     });
 
-    // 3. OPEN TASK DETAIL (AJAX Load)
+    // 3. BUKA DETAIL TASK
     window.openTaskDetail = function(taskId) {
         currentTaskId = taskId;
         
-        // Reset Modal
+        // Reset UI Modal
         document.getElementById('detailTitle').value = "Loading...";
-        document.getElementById('commentList').innerHTML = "Loading...";
+        document.getElementById('detailDescription').value = "";
+        document.getElementById('commentList').innerHTML = '<div class="text-center p-3"><i class="bx bx-loader-alt bx-spin"></i></div>';
         
         let detailModal = new bootstrap.Modal(document.getElementById('taskDetailModal'));
         detailModal.show();
@@ -406,23 +447,28 @@
         fetch(`/tasks/${taskId}`)
         .then(res => res.json())
         .then(data => {
-            // Isi Data Form
+            // Isi Form Edit
             document.getElementById('detailTitle').value = data.title;
             document.getElementById('detailDescription').value = data.description || '';
             document.getElementById('detailPriority').value = data.priority;
-            document.getElementById('detailAssignee').value = data.assignee ? data.assignee.name : 'Unassigned';
-            
-            // Setup Action Form
-            document.getElementById('formEditTask').action = `/tasks/${taskId}`;
+            document.getElementById('detailAssigneeInput').value = data.assigned_to || '';
+            document.getElementById('detailDueDateDisplay').value = data.due_date || '-';
+
+            // Setup Form Action (Untuk Delete)
             document.getElementById('formDeleteTask').action = `/tasks/${taskId}`;
 
-            // Render Attachment
+            // Render Attachments
             let attachHtml = '';
             if(data.attachments && data.attachments.length > 0) {
                 data.attachments.forEach(file => {
-                    attachHtml += `<li class="list-group-item px-0 py-1"><a href="/storage/${file.file_path}" target="_blank"><i class="bx bx-file"></i> ${file.file_name}</a></li>`;
+                    attachHtml += `
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-2 py-1">
+                            <a href="/storage/${file.file_path}" target="_blank" class="text-decoration-none text-truncate" style="max-width: 85%;">
+                                <i class="bx bx-file"></i> ${file.file_name}
+                            </a>
+                        </li>`;
                 });
-            } else { attachHtml = '<li class="text-muted small fst-italic">Tidak ada lampiran.</li>'; }
+            } else { attachHtml = '<li class="list-group-item text-muted small fst-italic px-2">Tidak ada lampiran.</li>'; }
             document.getElementById('attachmentList').innerHTML = attachHtml;
 
             // Render Comments
@@ -430,28 +476,86 @@
         });
     };
 
-    // 4. COMMENTS LOGIC
+    // 4. UPDATE TASK AJAX (Tanpa Reload)
+    window.updateTaskAjax = function(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btnSaveTask');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = 'Menyimpan...';
+        btn.disabled = true;
+
+        let formData = new FormData(document.getElementById('formEditTask'));
+        // Method spoofing untuk Laravel PUT
+        formData.append('_method', 'PUT');
+
+        fetch(`/tasks/${currentTaskId}`, {
+            method: "POST", // Menggunakan POST dengan _method PUT
+            headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            
+            // Update Tampilan Kartu di Board (Tanpa Reload)
+            const card = document.getElementById(`card-task-${currentTaskId}`);
+            if(card) {
+                // Update Judul
+                card.querySelector('.task-title').innerText = formData.get('title');
+                
+                // Update Badge Prioritas
+                const priority = formData.get('priority');
+                const badge = card.querySelector('.priority-badge');
+                badge.className = 'badge rounded-pill priority-badge'; // Reset class
+                if(priority === 'high') badge.classList.add('bg-label-danger');
+                else if(priority === 'medium') badge.classList.add('bg-label-warning');
+                else badge.classList.add('bg-label-info');
+                badge.innerText = priority.charAt(0).toUpperCase() + priority.slice(1);
+            }
+            
+            showAlert("Tugas berhasil diperbarui!", "success");
+            
+            // Tutup modal opsional (atau biarkan terbuka)
+            // bootstrap.Modal.getInstance(document.getElementById('taskDetailModal')).hide();
+        })
+        .catch(err => {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            alert("Terjadi kesalahan saat menyimpan.");
+        });
+    };
+
+    // 5. COMMENTS LOGIC
     function loadComments(comments) {
         let html = '';
         if(comments && comments.length > 0) {
             comments.forEach(c => {
                 html += `
-                    <div class="mb-2 pb-2 border-bottom">
-                        <div class="d-flex justify-content-between">
-                            <small class="fw-bold text-primary">${c.user ? c.user.name : 'User'}</small>
-                            <small class="text-muted" style="font-size:10px;">${new Date(c.created_at).toLocaleTimeString()}</small>
+                    <div class="d-flex mb-3 animate__animated animate__fadeIn">
+                        <div class="avatar avatar-xs me-2">
+                             <img src="${c.user.avatar ? '/storage/'+c.user.avatar : '/assets/img/avatars/1.png'}" class="rounded-circle">
                         </div>
-                        <p class="mb-0 small text-dark">${c.content}</p>
+                        <div class="flex-grow-1">
+                            <div class="bg-white p-2 rounded shadow-sm border">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <small class="fw-bold text-primary">${c.user ? c.user.name : 'User'}</small>
+                                    <small class="text-muted" style="font-size:10px;">${new Date(c.created_at).toLocaleString()}</small>
+                                </div>
+                                <p class="mb-0 small text-dark">${c.content}</p>
+                            </div>
+                        </div>
                     </div>
                 `;
             });
-        } else { html = '<div class="text-center small text-muted mt-3">Belum ada diskusi.</div>'; }
+        } else { html = '<div class="text-center small text-muted mt-3">Belum ada diskusi. Jadilah yang pertama berkomentar!</div>'; }
         document.getElementById('commentList').innerHTML = html;
+        scrollToBottomComments();
     }
 
     window.sendComment = function() {
         let input = document.getElementById('commentInput');
-        let content = input.value;
+        let content = input.value.trim();
         if(!content) return;
 
         let formData = new FormData();
@@ -463,21 +567,47 @@
             body: formData
         }).then(res => res.json()).then(data => {
             if(data.success) {
-                // Append manual tanpa reload full
                 let list = document.getElementById('commentList');
+                // Hapus pesan kosong jika ada
+                if(list.innerText.includes('Belum ada diskusi')) list.innerHTML = '';
+
                 let newHtml = `
-                    <div class="mb-2 pb-2 border-bottom bg-label-success p-1 rounded">
-                        <small class="fw-bold">Saya</small>
-                        <p class="mb-0 small">${data.data.content}</p>
+                    <div class="d-flex mb-3 animate__animated animate__fadeIn">
+                        <div class="avatar avatar-xs me-2">
+                            <span class="avatar-initial rounded-circle bg-label-primary">Me</span>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="bg-white p-2 rounded shadow-sm border" style="border-left: 3px solid #696cff !important;">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <small class="fw-bold text-dark">Saya</small>
+                                    <small class="text-muted" style="font-size:10px;">Baru saja</small>
+                                </div>
+                                <p class="mb-0 small text-dark">${data.data.content}</p>
+                            </div>
+                        </div>
                     </div>`;
                 list.insertAdjacentHTML('beforeend', newHtml);
                 input.value = '';
-                list.scrollTop = list.scrollHeight;
+                scrollToBottomComments();
+
+                // Update indikator komentar di kartu luar
+                const card = document.getElementById(`card-task-${currentTaskId}`);
+                if(card) {
+                    const indicator = card.querySelector('.comment-indicator');
+                    const counter = card.querySelector('.comment-count');
+                    indicator.style.display = 'inline-block';
+                    counter.innerText = parseInt(counter.innerText || 0) + 1;
+                }
             }
         });
     };
 
-    // 5. UPLOAD FILE
+    function scrollToBottomComments() {
+        let list = document.getElementById('commentList');
+        list.scrollTop = list.scrollHeight;
+    }
+
+    // 6. UPLOAD FILE
     window.uploadFile = function() {
         let fileInput = document.getElementById('fileInput');
         if(fileInput.files.length === 0) return;
@@ -485,34 +615,49 @@
         let formData = new FormData();
         formData.append('file', fileInput.files[0]);
 
-        document.getElementById('uploadStatus').innerText = "Uploading...";
+        const status = document.getElementById('uploadStatus');
+        status.innerText = "Mengunggah...";
 
         fetch(`/tasks/${currentTaskId}/attachments`, {
             method: "POST",
             headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
             body: formData
         }).then(res => res.json()).then(data => {
-            document.getElementById('uploadStatus').innerText = "Berhasil!";
+            status.innerText = "";
             let list = document.getElementById('attachmentList');
-            let item = `<li class="list-group-item px-0 py-1 bg-label-success"><a href="${data.url}" target="_blank"><i class="bx bx-file"></i> ${data.data.file_name}</a></li>`;
+            // Hapus pesan kosong
+            if(list.innerHTML.includes('Tidak ada lampiran')) list.innerHTML = '';
+
+            let item = `
+                <li class="list-group-item d-flex justify-content-between align-items-center px-2 py-1 bg-label-success animate__animated animate__fadeIn">
+                    <a href="${data.url}" target="_blank" class="text-decoration-none text-dark">
+                        <i class="bx bx-check-circle text-success"></i> ${data.data.file_name}
+                    </a>
+                </li>`;
             list.insertAdjacentHTML('beforeend', item);
+            fileInput.value = ''; // Reset input
+        }).catch(err => {
+            status.innerText = "Gagal mengunggah.";
         });
     };
 
-    // 6. INITIALIZE DRAG & DROP
+    // 7. INISIALISASI DRAG & DROP
     document.addEventListener('DOMContentLoaded', function() {
         var containers = document.querySelectorAll('.kanban-tasks');
         containers.forEach(function (container) {
             new Sortable(container, {
                 group: 'kanban-board', 
                 animation: 150,
-                ghostClass: 'bg-label-primary',
+                delay: 100, // Cegah drag tidak sengaja saat klik
+                delayOnTouchOnly: true,
+                ghostClass: 'sortable-ghost',
+                dragClass: 'sortable-drag',
                 onEnd: function (evt) {
-                    var taskId = evt.item.getAttribute('data-task-id');
+                    var itemEl = evt.item;
+                    var taskId = itemEl.getAttribute('data-task-id');
                     var newColumnId = evt.to.getAttribute('data-column-id');
                     var newPosition = evt.newIndex + 1; 
 
-                    // Kirim update posisi ke server
                     let formData = new FormData();
                     formData.append('task_id', taskId);
                     formData.append('column_id', newColumnId);
@@ -522,16 +667,37 @@
                         method: "POST",
                         headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
                         body: formData
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if(!data.success) {
+                            // Jika gagal, kembalikan kartu (Rollback UI)
+                            alert("Gagal memindahkan tugas. Silakan refresh.");
+                            location.reload(); 
+                        }
                     });
                 }
             });
         });
     });
 
-    // Helper Modal Task
+    // Helper: Buka Modal Tambah Task
     window.openAddTaskModal = function(colId) {
         document.getElementById('modalColumnId').value = colId;
         new bootstrap.Modal(document.getElementById('addTaskModal')).show();
+    }
+
+    // Helper: Show Custom Alert
+    function showAlert(message, type = 'success') {
+        const container = document.getElementById('alert-container');
+        const alertHtml = `
+            <div class="alert alert-${type} alert-dismissible fade show shadow-sm" role="alert">
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        container.innerHTML = alertHtml;
+        setTimeout(() => { container.innerHTML = ''; }, 3000);
     }
 </script>
 @endpush

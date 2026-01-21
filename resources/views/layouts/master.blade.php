@@ -1,6 +1,5 @@
 <!DOCTYPE html>
-{{-- PENTING: Class 'light-style' dibiarkan agar JS template bawaan tidak error. 
-     Warna dimanipulasi lewat CSS manual di bawah. --}}
+{{-- Class 'light-style' dibiarkan agar JS template bawaan tidak error. Warna di-override via CSS. --}}
 <html lang="id" 
       class="light-style layout-menu-fixed" 
       dir="ltr" 
@@ -34,63 +33,41 @@
     <link rel="stylesheet" href="{{ asset('assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css') }}" />
 
     {{-- ========================================================== --}}
-    {{-- FITUR DARK MODE MANUAL (INJECTION) --}}
+    {{-- FITUR DARK MODE MANUAL --}}
     {{-- ========================================================== --}}
     @if(Auth::user() && Auth::user()->theme == 'dark')
     <style>
-        /* Override Variabel Warna Utama */
         :root {
             --bs-body-bg: #232333;      
             --bs-body-color: #a3a4cc;   
             --bs-card-bg: #2b2c40;      
             --bs-heading-color: #e4e6fb; 
         }
-        
-        /* Body & Layout */
         body, .layout-wrapper, .layout-container, .layout-page, .content-wrapper { 
-            background-color: #232333 !important; 
-            color: #a3a4cc !important; 
+            background-color: #232333 !important; color: #a3a4cc !important; 
         }
-        
-        /* Navbar, Sidebar & Menu */
         .bg-navbar-theme { background-color: #2b2c40 !important; color: #fff !important; }
         .bg-menu-theme { background-color: #2b2c40 !important; color: #a3a4cc !important; }
         .menu-link { color: #a3a4cc !important; }
         .menu-item.active .menu-link { background-color: #696cff !important; color: #fff !important; }
         .app-brand { background-color: #2b2c40 !important; }
-
-        /* Card & Container */
         .card { background-color: #2b2c40 !important; border: none; box-shadow: 0 2px 6px 0 rgba(0,0,0,0.3); }
         .card-header, .card-footer { background-color: transparent !important; border-color: #444 !important; }
-        
-        /* Dropdown & Popups */
         .dropdown-menu { background-color: #2b2c40 !important; border: 1px solid #444; }
         .dropdown-item { color: #a3a4cc !important; }
         .dropdown-item:hover, .dropdown-item:focus { background-color: #32344c !important; color: #fff !important; }
-        
-        /* Typography */
         h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 { color: #e4e6fb !important; }
         .text-body { color: #a3a4cc !important; }
         .text-muted { color: #7a8a9e !important; }
         .text-dark { color: #fff !important; }
-        
-        /* Form Input elements */
         .form-control, .form-select, .input-group-text { 
-            background-color: #32344c !important; 
-            border-color: #444 !important; 
-            color: #fff !important; 
+            background-color: #32344c !important; border-color: #444 !important; color: #fff !important; 
         }
-        .form-control::placeholder { color: #6f7488 !important; }
-
-        /* Footer */
         .bg-footer-theme { background-color: #232333 !important; }
-        
-        /* Border & Separators */
         .border-bottom, .border-top, .border-end, .border-start, hr { border-color: #444 !important; }
     </style>
     @endif
 
-    {{-- Helpers --}}
     <script src="{{ asset('assets/vendor/js/helpers.js') }}"></script>
     <script src="{{ asset('assets/js/config.js') }}"></script>
     
@@ -129,7 +106,6 @@
             </div>
         </div>
         
-        {{-- Overlay Mobile --}}
         <div class="layout-overlay layout-menu-toggle"></div>
     </div>
 
@@ -141,27 +117,24 @@
     <script src="{{ asset('assets/vendor/js/menu.js') }}"></script>
     <script src="{{ asset('assets/js/main.js') }}"></script>
 
-    {{-- Load Vite (Agar JS standar jalan) --}}
+    {{-- 1. LOAD VITE (Untuk Reverb/Echo) --}}
     @vite(['resources/js/app.js'])
 
-    {{-- REVERB & ECHO DEPENDENCIES (CDN) --}}
-    {{-- Kita gunakan CDN agar menghindari masalah build Vite yang rumit --}}
+    {{-- 2. LOAD SORTABLE JS (WAJIB UTK DRAG & DROP) --}}
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+
+    {{-- 3. LOAD ECHO & PUSHER (CDN FALLBACK) --}}
     <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/laravel-echo/1.16.1/echo.iife.js"></script>
 
     {{-- SCRIPT: THEME SWITCHER + NOTIFIKASI --}}
     <script>
-    // ==========================================
-    // 1. FUNGSI GANTI TEMA (Global)
-    // ==========================================
+    // FUNGSI GANTI TEMA
     window.toggleTheme = function(e) {
         if(e) e.preventDefault(); 
-        
-        // Efek Loading
         document.body.style.opacity = '0.5';
         document.body.style.cursor = 'wait';
 
-        // Cek tema saat ini
         let currentTheme = "{{ Auth::user()->theme ?? 'light' }}";
         let newTheme = currentTheme === 'dark' ? 'light' : 'dark';
         
@@ -175,32 +148,22 @@
         })
         .then(response => response.json())
         .then(data => {
-            if (data.success) {
-                location.reload(); // Reload halaman untuk apply CSS baru
-            } else {
-                alert("Gagal ganti tema");
-                document.body.style.opacity = '1';
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            document.body.style.opacity = '1';
+            if (data.success) location.reload();
+            else { alert("Gagal ganti tema"); document.body.style.opacity = '1'; }
         });
     };
 
-    // ==========================================
-    // 2. LOGIC NOTIFIKASI REAL-TIME (Reverb)
-    // ==========================================
+    // LOGIC NOTIFIKASI REAL-TIME
     document.addEventListener('DOMContentLoaded', function () {
         // Konfigurasi Echo Manual (CDN)
         window.Pusher = Pusher;
         window.Echo = new Echo({
             broadcaster: 'reverb',
-            key: "{{ env('REVERB_APP_KEY') }}",
-            wsHost: "{{ env('REVERB_HOST') }}",
-            wsPort: {{ env('REVERB_PORT') ?? 80 }},
-            wssPort: {{ env('REVERB_PORT') ?? 443 }},
-            forceTLS: ("{{ env('REVERB_SCHEME') }}" === "https"),
+            key: "{{ config('broadcasting.connections.reverb.key') }}",
+            wsHost: "{{ config('broadcasting.connections.reverb.options.host') }}",
+            wsPort: {{ config('broadcasting.connections.reverb.options.port') ?? 80 }},
+            wssPort: {{ config('broadcasting.connections.reverb.options.port') ?? 443 }},
+            forceTLS: ("{{ config('broadcasting.connections.reverb.options.scheme') }}" === "https"),
             enabledTransports: ['ws', 'wss'],
         });
 
@@ -219,39 +182,32 @@
                     if(badge) {
                         let currentCount = parseInt(badge.innerText) || 0;
                         badge.innerText = currentCount + 1;
-                        badge.style.display = 'block'; // Tampilkan badge
+                        badge.style.display = 'block';
                     }
 
                     // B. Update List Dropdown
                     let list = document.getElementById('notif-list');
                     let emptyMsg = document.getElementById('empty-notif');
-                    if(emptyMsg) emptyMsg.remove(); // Hapus pesan "kosong"
+                    if(emptyMsg) emptyMsg.remove();
 
                     if(list) {
-                        // Tentukan warna icon
                         let bgClass = 'bg-label-primary';
                         if(notification.type == 'danger') bgClass = 'bg-label-danger';
                         if(notification.type == 'success') bgClass = 'bg-label-success';
                         if(notification.type == 'warning') bgClass = 'bg-label-warning';
                         if(notification.type == 'invitation') bgClass = 'bg-label-info';
 
-                        // Cek Tombol Terima/Tolak (Invitation)
                         let actionButtons = '';
                         if (notification.type === 'invitation' && notification.meta && notification.meta.token) {
-                            // Gunakan TOKEN, bukan ID
                             let token = notification.meta.token;
-                            let acceptUrl = "/invitations/" + token + "/accept";
-                            let rejectUrl = "/invitations/" + token + "/reject";
-
                             actionButtons = `
                                 <div class="mt-2 d-flex gap-2">
-                                    <a href="${acceptUrl}" class="btn btn-xs btn-primary">Terima</a>
-                                    <a href="${rejectUrl}" class="btn btn-xs btn-outline-danger">Tolak</a>
+                                    <a href="/invitations/${token}/accept" class="btn btn-xs btn-primary">Terima</a>
+                                    <a href="/invitations/${token}/reject" class="btn btn-xs btn-outline-danger">Tolak</a>
                                 </div>
                             `;
                         }
 
-                        // Buat HTML Item Notifikasi
                         let html = `
                             <li class="list-group-item list-group-item-action dropdown-notifications-item bg-label-secondary animate__animated animate__fadeIn">
                                 <div class="d-flex">
@@ -273,7 +229,6 @@
                                 </div>
                             </li>
                         `;
-                        // Masukkan ke paling atas list
                         list.insertAdjacentHTML('afterbegin', html);
                     }
                 });
