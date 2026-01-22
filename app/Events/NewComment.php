@@ -5,7 +5,8 @@ namespace App\Events;
 use App\Models\Comment;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow; // PENTING: Pakai Now biar instan
+use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
@@ -18,22 +19,28 @@ class NewComment implements ShouldBroadcastNow
 
     public function __construct(Comment $comment, $projectId)
     {
-        // Kita kirim data komentar lengkap dengan usernya
         $this->comment = $comment;
         $this->projectId = $projectId;
     }
 
-    // Channel tempat event ini disiarkan (Public Channel untuk kemudahan)
     public function broadcastOn(): array
     {
         return [
-            new Channel('project.' . $this->projectId),
+            new PrivateChannel('projects.' . $this->projectId),
         ];
     }
 
-    // Nama event yang akan didengar Javascript
-    public function broadcastAs()
+    public function broadcastWith()
     {
-        return 'comment.added';
+        // Load relasi user agar avatar & nama muncul
+        $this->comment->load('user');
+
+        return [
+            'task_id' => $this->comment->task_id,
+            'content' => $this->comment->content,
+            'user_name' => $this->comment->user->name,
+            'user_avatar' => $this->comment->user->avatar,
+            'created_at' => $this->comment->created_at->toIso8601String(),
+        ];
     }
 }

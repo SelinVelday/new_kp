@@ -1,26 +1,24 @@
 <?php
 
 use Illuminate\Support\Facades\Broadcast;
+use App\Models\Project;
 
 /*
 |--------------------------------------------------------------------------
 | Broadcast Channels
 |--------------------------------------------------------------------------
-|
-| Di sini Anda dapat mendaftarkan semua saluran penyiaran acara yang didukung
-| oleh aplikasi Anda. Callback otorisasi saluran akan dipanggil.
-|
 */
 
-// Izin untuk channel Project (agar board bisa digeser real-time)
-Broadcast::channel('project.{id}', function ($user, $id) {
-    // Kembalikan true jika user adalah anggota project tersebut
-    return $user->projects->contains($id);
+// 1. Channel Project (Untuk Board & Chat)
+// Nama channel: projects.{id}
+Broadcast::channel('projects.{projectId}', function ($user, $projectId) {
+    // Cek apakah user adalah anggota project
+    $project = Project::find($projectId);
+    return $project && $project->members->contains($user->id);
 });
 
-// --- TAMBAHKAN INI (PENTING UNTUK NOTIFIKASI) ---
-// Izin untuk channel User (agar notifikasi lonceng muncul)
+// 2. Channel User Pribadi (Untuk Notifikasi Lonceng)
+// Nama channel: App.Models.User.{id}
 Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
-    // User hanya boleh mendengar channel miliknya sendiri
     return (int) $user->id === (int) $id;
 });
