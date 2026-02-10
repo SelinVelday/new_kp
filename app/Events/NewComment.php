@@ -30,6 +30,15 @@ class NewComment implements ShouldBroadcastNow
         ];
     }
 
+    /**
+     * PENTING: Menentukan nama event broadcast agar bisa ditangkap
+     * oleh .listen('.comment.added') di JavaScript.
+     */
+    public function broadcastAs()
+    {
+        return 'comment.added';
+    }
+
     public function broadcastWith()
     {
         // Load relasi user agar avatar & nama muncul

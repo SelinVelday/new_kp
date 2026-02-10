@@ -3,87 +3,80 @@
 namespace App\Http\Controllers;
 
 use App\Models\ProjectInvitation;
+use App\Models\Project;
 use App\Models\User;
-use App\Notifications\SystemNotification; 
+use App\Notifications\SystemNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Notification; // Tambahan
 
 class InvitationController extends Controller
 {
     /**
-     * Terima Undangan
+     * Terima Undangan Project
      */
     public function accept($token)
     {
-        // 1. Cari undangan berdasarkan token
-        $invitation = ProjectInvitation::where('token', $token)
-                        ->with('project', 'inviter')
-                        ->firstOrFail();
+        // 1. Cari data undangan berdasarkan token
+        $invitation = ProjectInvitation::where('token', $token)->first();
 
-        // 2. Validasi Keamanan
+        // 2. Jika undangan tidak ditemukan
+        if (!$invitation) {
+            return redirect()->route('dashboard')->with('error', 'Undangan tidak valid atau sudah kadaluwarsa.');
+        }
+
+        // 3. Pastikan email yang login SAMA dengan email undangan
         if (Auth::user()->email !== $invitation->email) {
-            abort(403, 'Akses ditolak. Email tidak cocok.');
+            return redirect()->route('dashboard')->with('error', 'Undangan ini bukan untuk akun email Anda.');
         }
 
-        // 3. PROSES GABUNG
-        if (!$invitation->project->members->contains(Auth::id())) {
-            $invitation->project->members()->attach(Auth::id(), ['role' => 'member']);
+        // 4. Cari Project terkait
+        $project = Project::find($invitation->project_id);
+
+        if ($project) {
+            // 5. Cek apakah user sudah menjadi anggota project ini
+            // (Asumsi relasi 'users' ada di model Project)
+            if (!$project->users()->where('user_id', Auth::id())->exists()) {
+                
+                // Tambahkan user ke project (Pivot Table)
+                // Role default 'member', sesuaikan jika ada kolom role
+                $project->users()->attach(Auth::id(), ['role' => 'member']);
+
+                // 6. Kirim Notifikasi ke Pemilik Project (Opsional)
+                $owner = User::find($project->created_by);
+                if ($owner) {
+                    $owner->notify(new SystemNotification(
+                        Auth::user()->name . ' menerima undangan Anda di project ' . $project->name,
+                        route('projects.show', $project->id),
+                        'success'
+                    ));
+                }
+
+                $message = 'Berhasil bergabung ke project!';
+            } else {
+                $message = 'Anda sudah menjadi anggota project ini.';
+            }
+
+            // 7. Hapus undangan agar tidak bisa dipakai lagi
+            $invitation->delete();
+
+            return redirect()->route('projects.show', $project->id)->with('success', $message);
         }
 
-        // 4. NOTIFIKASI KE SELURUH TIM (BARU DITAMBAHKAN)
-        // Beri tahu semua member bahwa ada anggota baru
-        $projectMembers = $invitation->project->members->where('id', '!=', Auth::id());
-        
-        Notification::send($projectMembers, new SystemNotification(
-            "👋 Selamat datang! " . Auth::user()->name . " baru saja bergabung ke project.",
-            route('projects.show', $invitation->project_id),
-            'success',
-            ['icon' => 'bx-user-plus']
-        ));
-
-        // Notifikasi khusus ke Pengundang (Opsional, tetap dipertahankan)
-        if ($invitation->inviter) {
-             $invitation->inviter->notify(new SystemNotification(
-                Auth::user()->name . " menerima undangan project " . $invitation->project->name,
-                route('projects.show', $invitation->project_id),
-                'success'
-            ));
-        }
-
-        // 5. Hapus Undangan
-        $invitation->delete();
-
-        return back()->with('success', 'Berhasil bergabung ke project ' . $invitation->project->name . '!');
+        return redirect()->route('dashboard')->with('error', 'Project tidak ditemukan.');
     }
 
     /**
-     * Tolak Undangan
+     * Tolak Undangan Project
      */
     public function reject($token)
     {
-        $invitation = ProjectInvitation::where('token', $token)
-                        ->with('project', 'inviter')
-                        ->firstOrFail();
+        $invitation = ProjectInvitation::where('token', $token)->first();
 
-        if (Auth::user()->email !== $invitation->email) {
-            abort(403, 'Akses ditolak.');
+        if ($invitation) {
+            $invitation->delete();
+            return redirect()->route('dashboard')->with('info', 'Undangan telah ditolak.');
         }
 
-        $projectName = $invitation->project->name;
-
-        // 1. Kirim Notifikasi Penolakan ke Pengundang
-        if ($invitation->inviter) {
-            $invitation->inviter->notify(new SystemNotification(
-                Auth::user()->name . " menolak undangan project " . $projectName,
-                '#',
-                'danger'
-            ));
-        }
-
-        // 2. Hapus Undangan
-        $invitation->delete();
-
-        return back()->with('info', 'Undangan project ' . $projectName . ' ditolak.');
+        return redirect()->route('dashboard')->with('error', 'Undangan tidak valid.');
     }
 }

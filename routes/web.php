@@ -3,13 +3,13 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 
-// --- IMPORT CONTROLLERS ---
+// --- IMPORT SEMUA CONTROLLER (JANGAN ADA YANG TERLEWAT) ---
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ColumnController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\AttachmentController;
-use App\Http\Controllers\InvitationController;
+use App\Http\Controllers\InvitationController; // <--- Wajib ada
 use App\Http\Controllers\ProfileController;
 use App\Notifications\SystemNotification;
 
@@ -26,10 +26,9 @@ Route::get('/', function () {
 Auth::routes();
 
 // --- GROUP MIDDLEWARE: HANYA USER LOGIN ---
-// (Baris 28 yang dimaksud error ada di sini)
 Route::middleware(['auth'])->group(function () {
 
-    // DASHBOARD
+    // DASHBOARD & HOME
     Route::get('/home', [ProjectController::class, 'index'])->name('home');
     Route::get('/dashboard', [ProjectController::class, 'index'])->name('dashboard');
     
@@ -54,11 +53,11 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy');
     Route::post('/tasks/move', [TaskController::class, 'move'])->name('tasks.move');
 
-    // FEATURES
+    // FEATURES (COMMENTS & ATTACHMENTS)
     Route::post('/tasks/{task}/comments', [CommentController::class, 'store'])->name('comments.store');
     Route::post('/tasks/{task}/attachments', [AttachmentController::class, 'store'])->name('attachments.store');
 
-    // INVITATIONS
+    // INVITATIONS (Fitur Terima/Tolak Undangan)
     Route::get('/invitations/{token}/accept', [InvitationController::class, 'accept'])->name('invitations.accept');
     Route::get('/invitations/{token}/reject', [InvitationController::class, 'reject'])->name('invitations.reject');
 
@@ -67,23 +66,24 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::post('/profile/theme', [ProfileController::class, 'updateTheme'])->name('profile.theme');
 
-    // NOTIFICATIONS
+    // NOTIFICATIONS (Fitur Tandai Semua Dibaca)
     Route::post('/notifications/mark-all-read', function () {
         auth()->user()->unreadNotifications->markAsRead();
         return response()->json(['success' => true]);
     })->name('notifications.markRead');
 
-    // TEST NOTIFIKASI MANUAL
+    // TEST NOTIFIKASI MANUAL (Untuk Debugging)
     Route::get('/test-manual-notif', function () {
         $user = auth()->user();
-        
-        $user->notify(new SystemNotification(
-            'Ini adalah tes notifikasi manual!', 
-            url('/dashboard'), 
-            'success'
-        ));
-        
-        return "Notifikasi terkirim ke database! Cek tabel notifications sekarang.";
+        if($user) {
+            $user->notify(new SystemNotification(
+                'Halo! Ini tes notifikasi manual.', 
+                url('/dashboard'), 
+                'success'
+            ));
+            return "Notifikasi terkirim! Cek lonceng.";
+        }
+        return "Login dulu.";
     });
 
-}); // <--- INI YANG HILANG SEBELUMNYA (Penutup Middleware Group)
+});

@@ -29,12 +29,12 @@ class SystemNotification extends Notification implements ShouldBroadcastNow
     }
 
     /**
-     * Simpan ke database (wajib untuk fitur lonceng)
-     * Broadcast (opsional untuk popup realtime jika pakai Reverb/Pusher)
+     * PENTING: Menambahkan 'broadcast' agar notifikasi muncul real-time
      */
     public function via($notifiable)
     {
-        return ['database'];    }
+        return ['database', 'broadcast'];
+    }
 
     /**
      * Format data yang masuk ke tabel 'notifications' kolom 'data'
@@ -44,24 +44,25 @@ class SystemNotification extends Notification implements ShouldBroadcastNow
         return [
             'message' => $this->message,
             'url' => $this->url,
-            'type' => $this->type, // invitation, success, danger, dll
+            'type' => $this->type,
             'icon' => $this->getIcon(),
             'meta' => $this->meta,
-            'time' => now()->diffForHumans() // Tambahan info waktu
+            'time' => now()->diffForHumans()
         ];
     }
 
     /**
-     * Format data untuk WebSocket (Laravel Reverb)
+     * Format data untuk WebSocket (Laravel Reverb / Pusher)
      */
     public function toBroadcast($notifiable): BroadcastMessage
     {
         return new BroadcastMessage([
+            'id' => $this->id,
             'message' => $this->message,
             'url' => $this->url,
             'type' => $this->type,
             'icon' => $this->getIcon(),
-            'time' => now()->translatedFormat('d M H:i'),
+            'time' => 'Baru saja',
             'meta' => $this->meta,
         ]);
     }
@@ -75,7 +76,7 @@ class SystemNotification extends Notification implements ShouldBroadcastNow
             case 'danger': return 'bx-trash';
             case 'success': return 'bx-check-circle';
             case 'warning': return 'bx-error';
-            case 'invitation': return 'bx-envelope'; // Icon Amplop untuk undangan
+            case 'invitation': return 'bx-envelope';
             default: return 'bx-bell';
         }
     }

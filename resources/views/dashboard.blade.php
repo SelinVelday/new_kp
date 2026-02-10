@@ -12,6 +12,13 @@
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     @endif
+    
+    @if(session('error'))
+        <div class="alert alert-danger alert-dismissible mb-4" role="alert">
+            {{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
 
     {{-- 1. HEADER GREETING --}}
     <div class="card mb-4 border-0 shadow-sm">
@@ -20,7 +27,8 @@
                 <div class="card-body">
                     <h4 class="card-title text-primary fw-bold">Halo, {{ Auth::user()->name }}! 🚀</h4>
                     <p class="mb-4 text-muted">
-                        Kamu memiliki <span class="fw-bold text-dark">{{ $projects->count() }} project aktif</span>. Cek tugas prioritasmu di bagian bawah.
+                        {{-- PERBAIKAN: Tambahkan null coalescing operator (?? 0) untuk keamanan --}}
+                        Kamu memiliki <span class="fw-bold text-dark">{{ $projects ? $projects->count() : 0 }} project aktif</span>. Cek tugas prioritasmu di bagian bawah.
                     </p>
                     <button class="btn btn-primary btn-sm px-3" data-bs-toggle="modal" data-bs-target="#createProjectModal">
                         <i class="bx bx-plus me-1"></i> Project Baru
@@ -66,7 +74,6 @@
 
                     {{-- JUDUL PROJECT --}}
                     <h5 class="card-title mb-1">
-                        {{-- Stretched-link membuat seluruh kartu bisa diklik --}}
                         <a href="{{ route('projects.show', $project->id) }}" class="text-primary fw-bold text-decoration-none stretched-link" style="font-size: 1.1rem;">
                             {{ $project->name }}
                         </a>
@@ -77,14 +84,11 @@
                         {{ $project->description ?? 'Tidak ada deskripsi.' }}
                     </p>
 
-                    {{-- ================================================= --}}
-                    {{-- ✨ FITUR BARU: PROGRESS BAR DENGAN ANGKA ✨ --}}
-                    {{-- ================================================= --}}
+                    {{-- PROGRESS BAR --}}
                     <div class="mt-3 position-relative" style="z-index: 2;">
                         <div class="d-flex justify-content-between align-items-end mb-1">
                             <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.5px;">Progress</small>
                             <small class="fw-bold text-primary" style="font-size: 0.75rem;">
-                                {{-- Menggunakan data dari Accessor di Model --}}
                                 {{ $project->progress['done'] ?? 0 }} / {{ $project->progress['total'] ?? 0 }} Task
                             </small>
                         </div>
@@ -97,7 +101,6 @@
                             </div>
                         </div>
                     </div>
-                    {{-- ================================================= --}}
                     
                     <hr class="my-4 border-light">
 
@@ -110,6 +113,7 @@
                                  data-bs-placement="top" 
                                  title="{{ $member->name }}">
                                  
+                                {{-- GANTI DENGAN ACCESSOR user->avatar_url JIKA ADA --}}
                                 @if($member->avatar)
                                     <img src="{{ asset('storage/'.$member->avatar) }}" alt="{{ $member->name }}" class="rounded-circle" style="object-fit: cover;">
                                 @else
@@ -138,6 +142,7 @@
             <div class="card border-dashed p-5 text-center bg-transparent shadow-none">
                 <div class="mb-3"><i class='bx bx-folder-plus text-muted' style="font-size: 3rem;"></i></div>
                 <h5>Belum ada Project</h5>
+                <p class="text-muted">Mulai kolaborasi dengan membuat project pertamamu.</p>
                 <button class="btn btn-outline-primary btn-sm mt-2" data-bs-toggle="modal" data-bs-target="#createProjectModal">Buat Project Pertama</button>
             </div>
         </div>
@@ -150,7 +155,7 @@
         
         <div class="card border-0 shadow-sm">
             <div class="card-body p-0">
-                @if($upcomingTasks->count() > 0)
+                @if(isset($upcomingTasks) && $upcomingTasks->count() > 0)
                     <ul class="list-group list-group-flush rounded-3">
                         @foreach($upcomingTasks as $task)
                             @php
@@ -173,9 +178,11 @@
                                         <span class="badge bg-label-danger rounded px-2 py-1" style="font-size: 0.75rem;">
                                             {{ $dueDate->format('d M Y') }}
                                         </span>
-                                        <a href="{{ route('projects.show', $task->column->project_id) }}" class="btn btn-sm btn-outline-primary px-3" style="font-size: 0.75rem;">
-                                            Lihat
-                                        </a>
+                                        @if($task->column && $task->column->project)
+                                            <a href="{{ route('projects.show', $task->column->project_id) }}" class="btn btn-sm btn-outline-primary px-3" style="font-size: 0.75rem;">
+                                                Lihat
+                                            </a>
+                                        @endif
                                     </div>
                                 </div>
                             </li>
@@ -223,16 +230,12 @@
     </div>
 </div>
 
-{{-- CSS & JS KHUSUS UNTUK EFEK --}}
 <style>
-    /* Efek Kartu Project */
     .hover-card { transition: all 0.3s ease; }
     .hover-card:hover { transform: translateY(-3px); box-shadow: 0 8px 15px rgba(0,0,0,0.1) !important; }
     .action-hover { transition: background-color 0.2s; }
     .action-hover:hover { background-color: #f8f9fa; }
     .border-dashed { border: 2px dashed #d9dee3; }
-
-    /* EFEK AVATAR INTERAKTIF */
     .avatar-interactive {
         transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         position: relative;

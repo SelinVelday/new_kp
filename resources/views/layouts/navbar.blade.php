@@ -1,6 +1,6 @@
 <nav class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme" id="layout-navbar">
     
-    {{-- 1. HAMBURGER MENU (MOBILE) --}}
+    {{-- HAMBURGER MENU (MOBILE) --}}
     <div class="layout-menu-toggle navbar-nav align-items-xl-center me-3 me-xl-0 d-xl-none">
         <a class="nav-item nav-link px-0 me-xl-4" href="javascript:void(0)">
             <i class="bx bx-menu bx-sm"></i>
@@ -10,7 +10,7 @@
     <div class="navbar-nav-right d-flex align-items-center" id="navbar-collapse">
         <ul class="navbar-nav flex-row align-items-center ms-auto">
             
-            {{-- 2. THEME SWITCHER --}}
+            {{-- THEME SWITCHER --}}
             <li class="nav-item me-2 me-xl-0">
                 <a class="nav-link style-switcher-toggle hide-arrow" href="javascript:void(0);" onclick="window.toggleTheme(event)">
                     @if(Auth::user()->theme == 'dark') 
@@ -21,7 +21,7 @@
                 </a>
             </li>
 
-            {{-- 3. NOTIFICATION DROPDOWN --}}
+            {{-- NOTIFICATION DROPDOWN --}}
             <li class="nav-item dropdown-notifications navbar-dropdown dropdown me-3 me-xl-1">
                 <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
                     <i class="bx bx-bell bx-sm"></i>
@@ -34,7 +34,6 @@
                 </a>
 
                 <ul class="dropdown-menu dropdown-menu-end py-0">
-                    {{-- Header Dropdown --}}
                     <li class="dropdown-menu-header border-bottom">
                         <div class="dropdown-header d-flex align-items-center py-3">
                             <h5 class="text-body mb-0 me-auto">Notifikasi</h5>
@@ -44,10 +43,7 @@
                         </div>
                     </li>
                     
-                    {{-- 
-                        BAGIAN SCROLLABLE 
-                        Style max-height: 400px; overflow-y: auto; membatasi tinggi list
-                    --}}
+                    {{-- LIST NOTIFIKASI --}}
                     <li class="dropdown-notifications-list scrollable-container" style="max-height: 400px; overflow-y: auto;">
                         <ul class="list-group list-group-flush" id="notif-list">
                             
@@ -56,7 +52,6 @@
                                     <div class="d-flex">
                                         <div class="flex-shrink-0 me-3">
                                             <div class="avatar">
-                                                {{-- Logic Warna Icon --}}
                                                 <span class="avatar-initial rounded-circle bg-label-{{ $notification->data['type'] == 'invitation' ? 'primary' : ($notification->data['type'] ?? 'primary') }}">
                                                     <i class="bx {{ $notification->data['icon'] ?? 'bx-bell' }}"></i>
                                                 </span>
@@ -75,7 +70,6 @@
                                             @endif
                                         </div>
                                         <div class="flex-shrink-0 dropdown-notifications-actions">
-                                            {{-- Indikator Belum Dibaca --}}
                                             <a href="javascript:void(0)" class="dropdown-notifications-read"><span class="badge badge-dot"></span></a>
                                         </div>
                                     </div>
@@ -89,21 +83,18 @@
 
                         </ul>
                     </li>
-                    
-                    {{-- Footer Dropdown --}}
                     <li class="dropdown-menu-footer border-top">
-                        <a href="javascript:void(0);" class="dropdown-item d-flex justify-content-center p-3">
-                            Lihat semua notifikasi
-                        </a>
+                        <a href="javascript:void(0);" class="dropdown-item d-flex justify-content-center p-3">Lihat semua notifikasi</a>
                     </li>
                 </ul>
             </li>
 
-            {{-- 4. USER PROFILE DROPDOWN --}}
+            {{-- USER PROFILE --}}
             <li class="nav-item navbar-dropdown dropdown-user dropdown">
                 <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);" data-bs-toggle="dropdown">
                     <div class="avatar avatar-online">
-                        <img src="{{ Auth::user()->avatar ? asset('storage/' . Auth::user()->avatar) : asset('assets/img/avatars/1.png') }}" class="w-px-40 h-px-40 rounded-circle" style="object-fit: cover;" />
+                        {{-- PERBAIKAN: Menggunakan Accessor avatar_url --}}
+                        <img src="{{ Auth::user()->avatar_url }}" class="w-px-40 h-px-40 rounded-circle" style="object-fit: cover;" />
                     </div>
                 </a>
                 <ul class="dropdown-menu dropdown-menu-end">
@@ -112,7 +103,8 @@
                             <div class="d-flex">
                                 <div class="flex-shrink-0 me-3">
                                     <div class="avatar avatar-online">
-                                        <img src="{{ Auth::user()->avatar ? asset('storage/' . Auth::user()->avatar) : asset('assets/img/avatars/1.png') }}" class="w-px-40 h-px-40 rounded-circle" style="object-fit: cover;" />
+                                        {{-- PERBAIKAN: Menggunakan Accessor avatar_url --}}
+                                        <img src="{{ Auth::user()->avatar_url }}" class="w-px-40 h-px-40 rounded-circle" style="object-fit: cover;" />
                                     </div>
                                 </div>
                                 <div class="flex-grow-1">
@@ -136,7 +128,7 @@
     </div>
 </nav>
 
-{{-- SCRIPT: Mark All Read (AJAX) --}}
+{{-- SCRIPT: Realtime Notification --}}
 <script>
     function markAllRead() {
         fetch("{{ route('notifications.markRead') }}", {
@@ -145,13 +137,79 @@
             body: JSON.stringify({})
         }).then(res => res.json()).then(data => {
             if (data.success) {
-                // Sembunyikan badge merah
                 let badge = document.getElementById('notif-badge');
                 if(badge) badge.style.display = 'none';
-                
-                // Opsional: Reload halaman jika ingin membersihkan list
                 location.reload();
             }
         });
     }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const currentUserId = "{{ auth()->id() }}";
+        
+        // Pastikan Laravel Echo sudah ter-load
+        if (window.Echo) {
+            console.log("Listening for notifications on channel: App.Models.User." + currentUserId);
+            
+            // Listen ke channel private user
+            window.Echo.private('App.Models.User.' + currentUserId)
+                .notification((notification) => {
+                    console.log('Notifikasi Masuk:', notification);
+                    
+                    // 1. Update Badge Merah
+                    const badge = document.getElementById('notif-badge');
+                    if(badge) {
+                        let count = parseInt(badge.innerText || 0) + 1;
+                        badge.innerText = count;
+                        badge.style.display = 'block';
+                        // Efek visual kecil (bounce)
+                        badge.classList.add('animate__animated', 'animate__bounceIn');
+                    }
+
+                    // 2. Tambahkan Item ke List Dropdown
+                    const notifList = document.getElementById('notif-list');
+                    const emptyMsg = document.getElementById('empty-notif');
+                    
+                    // Hapus pesan "Belum ada notifikasi" jika ada
+                    if(emptyMsg) emptyMsg.remove();
+
+                    // Buat HTML untuk notifikasi baru
+                    let buttonsHtml = '';
+                    if(notification.type === 'invitation' && notification.meta && notification.meta.token) {
+                        buttonsHtml = `
+                            <div class="mt-2 d-flex gap-2">
+                                <a href="/invitations/${notification.meta.token}/accept" class="btn btn-sm btn-success">Terima</a>
+                                <a href="/invitations/${notification.meta.token}/reject" class="btn btn-sm btn-danger">Tolak</a>
+                            </div>`;
+                    } else if(notification.url && notification.url !== '#') {
+                        buttonsHtml = `<div class="mt-2"><a href="${notification.url}" class="btn btn-sm btn-primary">Lihat</a></div>`;
+                    }
+
+                    const newNotifHtml = `
+                        <li class="list-group-item list-group-item-action dropdown-notifications-item bg-label-secondary animate__animated animate__fadeInLeft">
+                            <div class="d-flex">
+                                <div class="flex-shrink-0 me-3">
+                                    <div class="avatar">
+                                        <span class="avatar-initial rounded-circle bg-label-${notification.type === 'invitation' ? 'primary' : (notification.type || 'primary')}">
+                                            <i class="bx ${notification.icon || 'bx-bell'}"></i>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1">${notification.message}</h6>
+                                    <small class="text-muted">Baru saja</small>
+                                    ${buttonsHtml}
+                                </div>
+                                <div class="flex-shrink-0 dropdown-notifications-actions">
+                                    <span class="badge badge-dot bg-primary"></span>
+                                </div>
+                            </div>
+                        </li>
+                    `;
+                    
+                    // Masukkan ke paling atas list
+                    notifList.insertAdjacentHTML('afterbegin', newNotifHtml);
+                });
+        }
+    });
 </script>

@@ -6,40 +6,26 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage; // Pastikan import ini ada
 
 class User extends Authenticatable
 {
     use HasFactory, Notifiable;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $fillable = [
         'name',
         'email',
         'password',
-        'avatar',     // Untuk foto profil
-        'theme',      // <--- WAJIB ADA: Untuk menyimpan preferensi Dark/Light mode
-        'is_online',  // Untuk status online
+        'avatar',
+        'theme',
+        'is_online',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
@@ -48,17 +34,27 @@ class User extends Authenticatable
         ];
     }
 
-    // --- RELASI ---
-    
-    // User memiliki banyak Project (Many-to-Many)
+    // --- ACCESSOR (Untuk Foto Profil) ---
+    public function getAvatarUrlAttribute()
+    {
+        if ($this->avatar && Storage::disk('public')->exists($this->avatar)) {
+            return asset('storage/' . $this->avatar);
+        }
+        return asset('assets/img/avatars/1.png');
+    }
+
+    // --- RELASI (BAGIAN INI YANG HILANG/ERROR) ---
+
+    // 1. Relasi ke Project (Many-to-Many via tabel project_user)
     public function projects()
     {
-        return $this->belongsToMany(Project::class, 'project_user')
+        // Pastikan nama tabel pivot sesuai: 'project_user'
+        return $this->belongsToMany(Project::class, 'project_user', 'user_id', 'project_id')
                     ->withPivot('role')
                     ->withTimestamps();
     }
 
-    // Relasi ke Task yang dikerjakan
+    // 2. Relasi ke Task (One-to-Many)
     public function tasks()
     {
         return $this->hasMany(Task::class, 'assigned_to');

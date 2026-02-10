@@ -4,7 +4,7 @@ namespace App\Events;
 
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PrivateChannel; // Gunakan PrivateChannel
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -14,7 +14,7 @@ class TaskMoved implements ShouldBroadcastNow
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public $taskId;
-    public $columnId; // Saya ubah jadi columnId biar konsisten dengan JS
+    public $columnId;
     public $newPosition;
     public $projectId;
 
@@ -32,6 +32,15 @@ class TaskMoved implements ShouldBroadcastNow
         return [
             new PrivateChannel('projects.' . $this->projectId),
         ];
+    }
+
+    /**
+     * PENTING: Menentukan nama event broadcast agar bisa ditangkap
+     * oleh .listen('.task.moved') di JavaScript.
+     */
+    public function broadcastAs()
+    {
+        return 'task.moved';
     }
 
     public function broadcastWith()

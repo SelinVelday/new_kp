@@ -7,7 +7,7 @@ use App\Models\User;
 use App\Models\Task;
 use App\Models\Team;
 use App\Models\ProjectInvitation;
-use App\Notifications\SystemNotification; // <--- WAJIB IMPORT INI
+use App\Notifications\SystemNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -21,7 +21,9 @@ class ProjectController extends Controller
     {
         $user = Auth::user();
         
-        $projects = $user->projects; 
+        // PERBAIKAN: Gunakan projects()->get() agar pasti mereturn Collection, bukan null.
+        // Jika pakai $user->projects (property), bisa konflik jika ada kolom DB bernama 'projects'.
+        $projects = $user->projects()->orderBy('created_at', 'desc')->get();
 
         $upcomingTasks = Task::where('assigned_to', $user->id)
             ->whereNotNull('due_date')
@@ -53,8 +55,10 @@ class ProjectController extends Controller
         ]);
 
         $team = Team::where('owner_id', Auth::id())->first();
-        $teamId = $team ? $team->id : 1; 
+        // Fallback: Jika user belum punya team, buat baru atau set null (sesuaikan logic)
+        $teamId = $team ? $team->id : null; 
 
+        // Buat Project
         $project = Project::create([
             'name' => $request->name,
             'description' => $request->description,
@@ -62,6 +66,7 @@ class ProjectController extends Controller
             'created_by' => Auth::id(), 
         ]);
 
+        // Attach user sebagai admin
         $project->members()->attach(Auth::id(), ['role' => 'admin']);
 
         return redirect()->route('dashboard')->with('success', 'Project berhasil dibuat!');
@@ -116,13 +121,12 @@ class ProjectController extends Controller
             'inviter_id' => Auth::id()
         ]);
 
-        // 5. KIRIM NOTIFIKASI (BAGIAN YANG HILANG SEBELUMNYA)
-        // Kita kirim ke $targetUser, bukan ke Auth user.
+        // 5. KIRIM NOTIFIKASI
         $targetUser->notify(new SystemNotification(
-            "Anda diundang bergabung ke Project: " . $project->name, // Pesan
-            route('dashboard'), // URL Redirect (ke dashboard untuk terima/tolak)
-            'invitation', // Tipe (agar icon amplop muncul)
-            ['token' => $invitation->token] // Meta data
+            "Anda diundang bergabung ke Project: " . $project->name,
+            route('dashboard'),
+            'invitation',
+            ['token' => $invitation->token]
         ));
 
         return back()->with('success', 'Undangan dikirim & notifikasi masuk ke user.');
