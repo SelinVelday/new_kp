@@ -9,25 +9,18 @@ class Team extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'slug', 'owner_id'];
+    // HAPUS 'description' DARI SINI JIKA DI DATABASE TIDAK ADA KOLOMNYA
+    protected $fillable = ['name', 'slug', 'owner_id']; 
 
-    // Relasi: Pemilik Tim (One to One dengan User)
     public function owner()
     {
         return $this->belongsTo(User::class, 'owner_id');
     }
 
-    // Relasi: Anggota Tim (Many to Many dengan User)
     public function members()
     {
-        return $this->belongsToMany(User::class, 'team_user')
-                    ->using(TeamUser::class)
-                    ->withPivot('role_id');
-    }
-
-    // Relasi: Tim punya banyak Project
-    public function projects()
-    {
-        return $this->hasMany(Project::class);
+        return $this->belongsToMany(User::class, 'team_user', 'team_id', 'user_id')
+                    ->withPivot('role_id')
+                    ->withTimestamps();
     }
 }

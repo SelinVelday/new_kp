@@ -3,14 +3,15 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 
-// --- IMPORT SEMUA CONTROLLER (JANGAN ADA YANG TERLEWAT) ---
+// --- IMPORT SEMUA CONTROLLER ---
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ColumnController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\AttachmentController;
-use App\Http\Controllers\InvitationController; // <--- Wajib ada
+use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\TeamController; // <--- TAMBAHKAN INI
 use App\Notifications\SystemNotification;
 
 /*
@@ -38,8 +39,14 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/projects/{id}', [ProjectController::class, 'update'])->name('projects.update');
     Route::delete('/projects/{id}', [ProjectController::class, 'destroy'])->name('projects.destroy');
     
-    // MEMBER (Mengirim Undangan)
+    // MEMBER (Mengirim Undangan Project)
     Route::post('/projects/{id}/members', [ProjectController::class, 'addMember'])->name('projects.members.add');
+
+    // TEAMS (My Team) - BARU DITAMBAHKAN
+    Route::get('/teams', [TeamController::class, 'index'])->name('teams.index');
+    Route::post('/teams', [TeamController::class, 'store'])->name('teams.store');
+    Route::put('/teams/{team}', [TeamController::class, 'update'])->name('teams.update');
+    Route::delete('/teams/{team}', [TeamController::class, 'destroy'])->name('teams.destroy');
 
     // COLUMNS
     Route::post('/columns', [ColumnController::class, 'store'])->name('columns.store');
@@ -53,11 +60,11 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy');
     Route::post('/tasks/move', [TaskController::class, 'move'])->name('tasks.move');
 
-    // FEATURES (COMMENTS & ATTACHMENTS)
+    // FEATURES
     Route::post('/tasks/{task}/comments', [CommentController::class, 'store'])->name('comments.store');
     Route::post('/tasks/{task}/attachments', [AttachmentController::class, 'store'])->name('attachments.store');
 
-    // INVITATIONS (Fitur Terima/Tolak Undangan)
+    // INVITATIONS
     Route::get('/invitations/{token}/accept', [InvitationController::class, 'accept'])->name('invitations.accept');
     Route::get('/invitations/{token}/reject', [InvitationController::class, 'reject'])->name('invitations.reject');
 
@@ -66,24 +73,9 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::post('/profile/theme', [ProfileController::class, 'updateTheme'])->name('profile.theme');
 
-    // NOTIFICATIONS (Fitur Tandai Semua Dibaca)
+    // NOTIFICATIONS
     Route::post('/notifications/mark-all-read', function () {
         auth()->user()->unreadNotifications->markAsRead();
         return response()->json(['success' => true]);
     })->name('notifications.markRead');
-
-    // TEST NOTIFIKASI MANUAL (Untuk Debugging)
-    Route::get('/test-manual-notif', function () {
-        $user = auth()->user();
-        if($user) {
-            $user->notify(new SystemNotification(
-                'Halo! Ini tes notifikasi manual.', 
-                url('/dashboard'), 
-                'success'
-            ));
-            return "Notifikasi terkirim! Cek lonceng.";
-        }
-        return "Login dulu.";
-    });
-
 });

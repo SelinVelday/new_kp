@@ -33,7 +33,6 @@
 
             <ul class="menu-sub">
                 @php
-                    // Pastikan user login sebelum query
                     $sidebarProjects = auth()->check() 
                         ? auth()->user()->projects()->orderBy('created_at', 'desc')->take(5)->get() 
                         : collect([]);
@@ -59,8 +58,9 @@
             </ul>
         </li>
 
-        <li class="menu-item">
-            <a href="#" class="menu-link">
+        {{-- MY TEAM (DIPERBARUI) --}}
+        <li class="menu-item {{ request()->routeIs('teams.*') ? 'active' : '' }}">
+            <a href="{{ route('teams.index') }}" class="menu-link">
                 <i class="menu-icon tf-icons bx bx-group"></i>
                 <div data-i18n="Teams">My Team</div>
             </a>
