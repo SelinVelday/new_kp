@@ -12,8 +12,9 @@
     <div class="menu-inner-shadow"></div>
 
     <ul class="menu-inner py-1">
-        <li class="menu-item active">
-            <a href="{{ url('/') }}" class="menu-link">
+        {{-- DASHBOARD --}}
+        <li class="menu-item {{ request()->routeIs('dashboard') ? 'active' : '' }}">
+            <a href="{{ route('dashboard') }}" class="menu-link">
                 <i class="menu-icon tf-icons bx bx-home-circle"></i>
                 <div data-i18n="Analytics">Dashboard</div>
             </a>
@@ -22,12 +23,42 @@
         <li class="menu-header small text-uppercase">
             <span class="menu-header-text">Workspace</span>
         </li>
-        <li class="menu-item">
-            <a href="#" class="menu-link">
+
+        {{-- PROJECTS DROPDOWN --}}
+        <li class="menu-item {{ request()->routeIs('projects.show') ? 'active open' : '' }}">
+            <a href="javascript:void(0);" class="menu-link menu-toggle">
                 <i class="menu-icon tf-icons bx bx-briefcase"></i>
                 <div data-i18n="Projects">Projects</div>
             </a>
+
+            <ul class="menu-sub">
+                @php
+                    // Pastikan user login sebelum query
+                    $sidebarProjects = auth()->check() 
+                        ? auth()->user()->projects()->orderBy('created_at', 'desc')->take(5)->get() 
+                        : collect([]);
+                @endphp
+
+                @forelse($sidebarProjects as $p)
+                <li class="menu-item {{ (request()->segment(2) == $p->id) ? 'active' : '' }}">
+                    <a href="{{ route('projects.show', $p->id) }}" class="menu-link">
+                        <div class="text-truncate" style="max-width: 150px;">{{ $p->name }}</div>
+                    </a>
+                </li>
+                @empty
+                <li class="menu-item">
+                    <a href="#" class="menu-link text-muted" style="pointer-events: none;">Belum ada project</a>
+                </li>
+                @endforelse
+                
+                <li class="menu-item">
+                    <a href="{{ route('dashboard') }}" class="menu-link text-primary fst-italic">
+                        <small>Lihat Semua...</small>
+                    </a>
+                </li>
+            </ul>
         </li>
+
         <li class="menu-item">
             <a href="#" class="menu-link">
                 <i class="menu-icon tf-icons bx bx-group"></i>

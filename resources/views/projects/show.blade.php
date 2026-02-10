@@ -4,12 +4,13 @@
 
 @push('styles')
 <style>
+    /* Styling Container Board */
     .kanban-board-container {
         display: flex;
         overflow-x: auto;
         gap: 1.5rem;
         padding-bottom: 1rem;
-        height: calc(100vh - 200px);
+        height: calc(100vh - 280px);
     }
     .kanban-column {
         min-width: 300px;
@@ -23,20 +24,27 @@
         overflow-y: auto;
         min-height: 100px;
     }
+    /* Scrollbar Cantik */
     .kanban-tasks::-webkit-scrollbar { width: 6px; }
     .kanban-tasks::-webkit-scrollbar-track { background: transparent; }
-    .kanban-tasks::-webkit-scrollbar-thumb { background: #d3d3d3; border-radius: 3px; }
+    .kanban-tasks::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 3px; }
     
+    /* Drag & Drop Visuals */
     .sortable-ghost { opacity: 0.4; background-color: #f0f0f0; border: 2px dashed #ccc; } 
     .sortable-drag { cursor: grabbing; opacity: 1; background: #fff; box-shadow: 0 5px 15px rgba(0,0,0,0.15); transform: rotate(2deg); }
     
-    .task-card { transition: transform 0.2s, box-shadow 0.2s; }
-    .task-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .task-card { transition: all 0.2s ease; border-left: 3px solid transparent; }
+    .task-card:hover { transform: translateY(-3px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    
+    /* Border warna prioritas */
+    .priority-high { border-left-color: #ff3e1d !important; }
+    .priority-medium { border-left-color: #ffab00 !important; }
+    .priority-low { border-left-color: #03c3ec !important; }
 </style>
 @endpush
 
 @section('content')
-<div class="container-fluid h-100">
+<div class="container-fluid h-100 d-flex flex-column">
     <div id="alert-container" style="position: fixed; top: 20px; right: 20px; z-index: 9999;"></div>
 
     @if(session('success'))
@@ -46,47 +54,85 @@
         </div>
     @endif
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h4 class="fw-bold mb-1">{{ $project->name }}</h4>
-            <div class="d-flex align-items-center gap-2">
-                <span class="text-muted small">{{ $project->description ?? 'Tidak ada deskripsi.' }}</span>
-                <span class="badge bg-label-success">Active <i class='bx bx-wifi'></i></span>
+    {{-- HEADER: Judul & Progress --}}
+    <div class="card shadow-sm mb-4 border-0">
+        <div class="card-body p-3">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <div>
+                    <h4 class="fw-bold mb-1 text-primary">{{ $project->name }}</h4>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="text-muted small">{{ $project->description ?? 'Tidak ada deskripsi.' }}</span>
+                        <span class="badge bg-label-success">Active <i class='bx bx-wifi'></i></span>
+                    </div>
+                </div>
+                
+                {{-- Action Buttons --}}
+                <div class="d-flex align-items-center gap-3">
+                    <div class="d-flex align-items-center">
+                        <ul class="list-unstyled users-list m-0 avatar-group d-flex align-items-center">
+                            @foreach($project->members->take(5) as $member)
+                            <li data-bs-toggle="tooltip" title="{{ $member->name }}" class="avatar avatar-xs pull-up">
+                                <img src="{{ $member->avatar ? asset('storage/' . $member->avatar) : asset('assets/img/avatars/1.png') }}" alt="Avatar" class="rounded-circle" style="object-fit: cover;">
+                            </li>
+                            @endforeach
+                            @if($project->members->count() > 5)
+                                <li class="avatar avatar-xs">
+                                    <span class="avatar-initial rounded-circle pull-up" data-bs-toggle="tooltip" title="{{ $project->members->count() - 5 }} more">+{{ $project->members->count() - 5 }}</span>
+                                </li>
+                            @endif
+                        </ul>
+                    </div>
+                    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#inviteMemberModal">
+                        <i class="bx bx-user-plus me-1"></i> Invite
+                    </button>
+                </div>
             </div>
-        </div>
-        
-        <div class="d-flex align-items-center gap-3">
-            <div class="d-flex align-items-center">
-                <ul class="list-unstyled users-list m-0 avatar-group d-flex align-items-center">
-                    @foreach($project->members->take(5) as $member)
-                    <li data-bs-toggle="tooltip" data-popup="tooltip-custom" data-bs-placement="top" title="{{ $member->name }}" class="avatar avatar-xs pull-up">
-                        <img src="{{ $member->avatar ? asset('storage/' . $member->avatar) : asset('assets/img/avatars/1.png') }}" alt="Avatar" class="rounded-circle" style="object-fit: cover;">
-                    </li>
-                    @endforeach
-                    @if($project->members->count() > 5)
-                        <li class="avatar avatar-xs">
-                            <span class="avatar-initial rounded-circle pull-up" data-bs-toggle="tooltip" title="{{ $project->members->count() - 5 }} more">+{{ $project->members->count() - 5 }}</span>
-                        </li>
-                    @endif
-                </ul>
+
+            {{-- PROGRESS BAR SECTION --}}
+            @php
+                $progress = $project->progress; 
+            @endphp
+            <div class="d-flex align-items-center gap-3">
+                <div class="flex-grow-1">
+                    <div class="d-flex justify-content-between mb-1">
+                        <small class="fw-semibold text-muted">Progress Project</small>
+                        {{-- ID untuk update via JS --}}
+                        <small class="fw-bold text-primary" id="prog-percent-text">{{ $progress['percentage'] }}%</small>
+                    </div>
+                    <div class="progress" style="height: 10px; border-radius: 10px; background-color: #eceef1;">
+                        {{-- ID untuk update via JS --}}
+                        <div id="prog-bar" 
+                             class="progress-bar bg-primary shadow-none" 
+                             role="progressbar" 
+                             style="width: {{ $progress['percentage'] }}%; transition: width 0.5s ease;" 
+                             aria-valuenow="{{ $progress['percentage'] }}" 
+                             aria-valuemin="0" 
+                             aria-valuemax="100">
+                        </div>
+                    </div>
+                </div>
+                <div class="text-end ps-3 border-start">
+                    {{-- ID untuk update via JS --}}
+                    <h6 class="mb-0 fw-bold" id="prog-count-text">{{ $progress['done'] }}/{{ $progress['total'] }}</h6>
+                    <small class="text-muted" style="font-size: 10px;">TASK SELESAI</small>
+                </div>
             </div>
-            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#inviteMemberModal">
-                <i class="bx bx-user-plus me-1"></i> Invite
-            </button>
         </div>
     </div>
 
-    <div class="kanban-board-container" id="kanban-wrapper">
+    {{-- KANBAN BOARD --}}
+    <div class="kanban-board-container pb-3" id="kanban-wrapper">
         @foreach($project->columns as $column)
         <div class="kanban-column" id="column-wrapper-{{ $column->id }}">
-            <div class="card h-100 shadow-sm border-0 bg-label-secondary">
-                <div class="card-header d-flex justify-content-between align-items-center p-3">
+            <div class="card h-100 shadow-sm border-0 bg-label-secondary" style="background-color: #f5f5f9;">
+                <div class="card-header d-flex justify-content-between align-items-center p-3 bg-white border-bottom rounded-top">
                     <div class="d-flex align-items-center gap-2">
-                        <h6 class="m-0 fw-bold text-uppercase fs-7">{{ $column->name }}</h6>
-                        <span class="badge bg-white text-primary rounded-pill task-count-badge">{{ $column->tasks->count() }}</span>
+                        {{-- Class 'column-title' penting untuk deteksi progress bar --}}
+                        <h6 class="m-0 fw-bold text-uppercase fs-7 text-dark column-title">{{ $column->name }}</h6>
+                        <span class="badge bg-label-primary rounded-pill task-count-badge">{{ $column->tasks->count() }}</span>
                     </div>
                     <div class="dropdown">
-                        <button class="btn p-0" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bx bx-dots-vertical-rounded"></i></button>
+                        <button class="btn p-0 text-muted" type="button" data-bs-toggle="dropdown"><i class="bx bx-dots-vertical-rounded"></i></button>
                         <ul class="dropdown-menu dropdown-menu-end">
                             <li><a class="dropdown-item text-danger delete-column-btn" href="javascript:void(0);" data-id="{{ $column->id }}"><i class="bx bx-trash me-1"></i> Hapus Kolom</a></li>
                         </ul>
@@ -95,11 +141,11 @@
 
                 <div class="card-body p-2 kanban-tasks" id="col-{{ $column->id }}" data-column-id="{{ $column->id }}">
                     @foreach($column->tasks->sortBy('position') as $task)
-                        <div class="card shadow-sm border bg-white cursor-pointer task-card mb-2" 
+                        <div class="card shadow-sm border-0 cursor-pointer task-card mb-2 priority-{{ $task->priority }}" 
                              id="card-task-{{ $task->id }}"
                              data-task-id="{{ $task->id }}" 
                              onclick="openTaskDetail({{ $task->id }})">
-                            <div class="card-body p-3">
+                            <div class="card-body p-3 bg-white rounded">
                                 <div class="d-flex justify-content-between mb-2">
                                     @php
                                         $badgeClass = match($task->priority) {
@@ -108,20 +154,33 @@
                                             default => 'bg-label-info'
                                         };
                                     @endphp
-                                    <span class="badge {{ $badgeClass }} rounded-pill priority-badge" style="font-size: 0.7rem;">{{ ucfirst($task->priority) }}</span>
+                                    <span class="badge {{ $badgeClass }} rounded-pill" style="font-size: 10px;">{{ strtoupper($task->priority) }}</span>
+                                    @if($task->due_date)
+                                        @php
+                                            $isOverdue = \Carbon\Carbon::parse($task->due_date)->isPast() && !in_array(strtolower($column->name), ['done', 'selesai', 'complete']);
+                                        @endphp
+                                        <small class="{{ $isOverdue ? 'text-danger fw-bold' : 'text-muted' }}" style="font-size: 11px;">
+                                            <i class="bx bx-calendar {{ $isOverdue ? 'bx-tada' : '' }}"></i> 
+                                            {{ \Carbon\Carbon::parse($task->due_date)->format('d M') }}
+                                        </small>
+                                    @endif
                                 </div>
-                                <h6 class="mb-2 text-dark task-title">{{ $task->title }}</h6>
-                                <div class="d-flex align-items-center justify-content-between mt-3">
-                                    <small class="text-muted"><i class="bx bx-calendar"></i> {{ $task->due_date ? \Carbon\Carbon::parse($task->due_date)->format('d M') : '-' }}</small>
-                                    <div class="d-flex align-items-center gap-2">
+                                
+                                <h6 class="mb-2 text-dark task-title fw-semibold" style="font-size: 0.95rem;">{{ $task->title }}</h6>
+                                
+                                <div class="d-flex align-items-center justify-content-between mt-3 pt-2 border-top border-dashed">
+                                    <div class="d-flex gap-2">
                                         <small class="text-muted comment-indicator" style="{{ $task->comments_count > 0 ? '' : 'display:none' }}">
                                             <i class='bx bx-message-rounded'></i> <span class="comment-count">{{ $task->comments_count }}</span>
                                         </small>
-                                        <div class="avatar avatar-xs assignee-avatar" style="{{ $task->assigned_to ? '' : 'display:none' }}">
-                                            @if($task->assigned_to)
-                                                <img src="{{ $task->assignee->avatar ? asset('storage/'.$task->assignee->avatar) : asset('assets/img/avatars/1.png') }}" class="rounded-circle" style="object-fit: cover;">
-                                            @endif
-                                        </div>
+                                        @if($task->attachments_count > 0)
+                                        <small class="text-muted"><i class='bx bx-paperclip'></i> {{ $task->attachments_count }}</small>
+                                        @endif
+                                    </div>
+                                    <div class="avatar avatar-xs assignee-avatar" style="{{ $task->assigned_to ? '' : 'display:none' }}">
+                                        @if($task->assigned_to)
+                                            <img src="{{ $task->assignee->avatar ? asset('storage/'.$task->assignee->avatar) : asset('assets/img/avatars/1.png') }}" class="rounded-circle" style="object-fit: cover;" title="{{ $task->assignee->name }}">
+                                        @endif
                                     </div>
                                 </div>
                             </div>
@@ -130,18 +189,18 @@
                 </div>
 
                 <div class="card-footer p-2 bg-transparent border-top-0">
-                    <button class="btn btn-outline-primary btn-sm w-100 fw-semibold" onclick="openAddTaskModal({{ $column->id }})"><i class="bx bx-plus"></i> Tambah Tugas</button>
+                    <button class="btn btn-label-secondary btn-sm w-100 fw-semibold" onclick="openAddTaskModal({{ $column->id }})"><i class="bx bx-plus"></i> Tambah Tugas</button>
                 </div>
             </div>
         </div>
         @endforeach
 
         <div style="min-width: 300px;">
-            <div class="card shadow-none bg-transparent border-2 border-dashed h-100 d-flex justify-content-start">
+            <div class="card shadow-none bg-transparent border border-2 border-dashed h-auto d-flex justify-content-start">
                 <div class="card-body p-3">
                     <div class="input-group">
-                        <input type="text" class="form-control" id="colNameInput" placeholder="Nama Kolom Baru...">
-                        <button class="btn btn-primary" type="button" onclick="submitColumnManual(this)"><i class="bx bx-plus"></i></button>
+                        <input type="text" class="form-control form-control-sm" id="colNameInput" placeholder="Tambah kolom...">
+                        <button class="btn btn-primary btn-sm" type="button" onclick="submitColumnManual(this)"><i class="bx bx-plus"></i></button>
                     </div>
                 </div>
             </div>
@@ -150,7 +209,6 @@
 </div>
 
 {{-- MODALS --}}
-{{-- 1. Create Task --}}
 <div class="modal fade" id="addTaskModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -171,7 +229,6 @@
     </div>
 </div>
 
-{{-- 2. Detail Task --}}
 <div class="modal fade" id="taskDetailModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content" style="min-height: 500px;">
@@ -212,7 +269,6 @@
     </div>
 </div>
 
-{{-- 3. Modal Invite --}}
 <div class="modal fade" id="inviteMemberModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-sm modal-dialog-centered">
         <div class="modal-content">
@@ -228,47 +284,112 @@
 <script>
     const projectId = "{{ $project->id }}";
     const userId = "{{ Auth::id() }}";
+    // PERBAIKAN 1: Ambil nama user untuk fallback check
+    const userName = "{{ Auth::user()->name }}"; 
+    
     const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     let currentTaskId = null;
 
-    // --- 1. REALTIME LISTENER (ECHO) ---
     document.addEventListener('DOMContentLoaded', function() {
+        // Hitung progress saat awal load
+        updateProgressBar();
+
         if (window.Echo) {
             console.log("Listening to channel: projects." + projectId);
             
             window.Echo.private('projects.' + projectId)
-                // A. Listen: Kartu Pindah
-                .listen('.task.moved', (e) => { // Perhatikan titik di depan jika namespace tidak default
-                    console.log('Realtime Move:', e);
+                .listen('.task.moved', (e) => {
                     moveTaskRealtime(e.task_id, e.column_id, e.new_position);
                 })
-                // B. Listen: Komentar Baru
                 .listen('.comment.added', (e) => {
-                    console.log('Realtime Comment:', e);
                     handleNewComment(e);
                 });
         }
         
-        // Inisialisasi Tooltip
         var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
         var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) { return new bootstrap.Tooltip(tooltipTriggerEl) });
+
+        // Init Sortable
+        var containers = document.querySelectorAll('.kanban-tasks');
+        containers.forEach(function (container) {
+            new Sortable(container, {
+                group: 'kanban-board', 
+                animation: 150,
+                delay: 100,
+                delayOnTouchOnly: true,
+                ghostClass: 'sortable-ghost',
+                dragClass: 'sortable-drag',
+                onEnd: function (evt) {
+                    var taskId = evt.item.getAttribute('data-task-id');
+                    var newColumnId = evt.to.getAttribute('data-column-id');
+                    var newPosition = evt.newIndex + 1; 
+
+                    updateTaskCounts(); 
+                    updateProgressBar(); // UPDATE PROGRESS
+
+                    let formData = new FormData();
+                    formData.append('task_id', taskId);
+                    formData.append('column_id', newColumnId);
+                    formData.append('new_position', newPosition);
+
+                    fetch("{{ route('tasks.move') }}", {
+                        method: "POST",
+                        headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
+                        body: formData
+                    });
+                }
+            });
+        });
     });
 
-    // --- LOGIC PINDAH KARTU (REALTIME) ---
+    // --- FUNGSI UPDATE PROGRESS BAR REALTIME ---
+    function updateProgressBar() {
+        const totalCards = document.querySelectorAll('.task-card').length;
+        let doneCards = 0;
+
+        // Cari kolom yang mengandung kata 'done', 'selesai', 'complete', 'beres'
+        document.querySelectorAll('.kanban-column').forEach(col => {
+            const titleElement = col.querySelector('.column-title');
+            if (titleElement) {
+                const title = titleElement.innerText.toLowerCase();
+                if (title.includes('done') || title.includes('selesai') || title.includes('complete') || title.includes('beres')) {
+                    doneCards += col.querySelectorAll('.task-card').length;
+                }
+            }
+        });
+
+        let percent = 0;
+        if (totalCards > 0) {
+            percent = Math.round((doneCards / totalCards) * 100);
+        }
+
+        const bar = document.getElementById('prog-bar');
+        const txtPercent = document.getElementById('prog-percent-text');
+        const txtCount = document.getElementById('prog-count-text');
+
+        if(bar) {
+            bar.style.width = percent + '%';
+            bar.setAttribute('aria-valuenow', percent);
+        }
+        if(txtPercent) txtPercent.innerText = percent + '%';
+        if(txtCount) txtCount.innerText = `${doneCards}/${totalCards}`;
+    }
+
     function moveTaskRealtime(taskId, targetColumnId, newPosition) {
         const taskCard = document.querySelector(`[data-task-id="${taskId}"]`);
         const targetColumn = document.querySelector(`[data-column-id="${targetColumnId}"]`);
 
+        // Cek jika kartu sudah ada di kolom tujuan (mencegah glitch visual jika event datang lambat)
+        if (taskCard && targetColumn && taskCard.parentElement.getAttribute('data-column-id') == targetColumnId) {
+            return;
+        }
+
         if (taskCard && targetColumn) {
-            // Pindahkan DOM
             targetColumn.appendChild(taskCard); 
-            
-            // Highlight efek visual
             taskCard.classList.add('bg-label-warning');
             setTimeout(() => taskCard.classList.remove('bg-label-warning'), 1000);
-            
-            // Update counter badge di header kolom
             updateTaskCounts();
+            updateProgressBar(); // Update progress bar saat event realtime
         }
     }
 
@@ -280,9 +401,22 @@
         });
     }
 
-    // --- LOGIC KOMENTAR (REALTIME) ---
+    // --- FIX DOUBLE CHAT ---
     function handleNewComment(data) {
-        // 1. Update Indikator di Kartu Luar
+        // PERBAIKAN 2: Cek apakah chat ini dari "Saya" (Selin Velday)?
+        
+        // Cek 1: Berdasarkan ID (Jika backend mengirim user_id)
+        if (data.user_id && String(data.user_id) === String(userId)) {
+            return; 
+        }
+
+        // Cek 2: Berdasarkan Nama (Fallback jika backend lupa ID)
+        // Ini mengatasi masalah jika ID tidak cocok/kosong, tapi namanya sama.
+        if (data.user_name && data.user_name === userName) {
+            return;
+        }
+
+        // --- Proses render chat orang lain ---
         const card = document.querySelector(`[data-task-id="${data.task_id}"]`);
         if(card) {
             const indicator = card.querySelector('.comment-indicator');
@@ -291,13 +425,13 @@
             counter.innerText = parseInt(counter.innerText || 0) + 1;
         }
 
-        // 2. Jika Modal Task tersebut sedang terbuka, tambahkan chat
         if (currentTaskId == data.task_id) {
             const list = document.getElementById('commentList');
             if(list.innerText.includes('Belum ada diskusi')) list.innerHTML = '';
 
+            // Tampilan chat orang lain (Kiri - Putih)
             const html = `
-                <div class="d-flex mb-3 animate__animated animate__fadeInRight">
+                <div class="d-flex mb-3 animate__animated animate__fadeInLeft">
                     <div class="avatar avatar-xs me-2">
                          <img src="${data.user_avatar ? '/storage/'+data.user_avatar : '/assets/img/avatars/1.png'}" class="rounded-circle">
                     </div>
@@ -316,39 +450,6 @@
             list.scrollTop = list.scrollHeight;
         }
     }
-
-    // --- SORTABLE JS (MANUAL DRAG) ---
-    document.addEventListener('DOMContentLoaded', function() {
-        var containers = document.querySelectorAll('.kanban-tasks');
-        containers.forEach(function (container) {
-            new Sortable(container, {
-                group: 'kanban-board', 
-                animation: 150,
-                delay: 100,
-                delayOnTouchOnly: true,
-                ghostClass: 'sortable-ghost',
-                dragClass: 'sortable-drag',
-                onEnd: function (evt) {
-                    var taskId = evt.item.getAttribute('data-task-id');
-                    var newColumnId = evt.to.getAttribute('data-column-id');
-                    var newPosition = evt.newIndex + 1; 
-
-                    updateTaskCounts(); // Update visual langsung
-
-                    let formData = new FormData();
-                    formData.append('task_id', taskId);
-                    formData.append('column_id', newColumnId);
-                    formData.append('new_position', newPosition);
-
-                    fetch("{{ route('tasks.move') }}", {
-                        method: "POST",
-                        headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
-                        body: formData
-                    });
-                }
-            });
-        });
-    });
 
     // --- HELPER FUNCTIONS ---
     window.submitColumnManual = function(btn) {
@@ -392,13 +493,49 @@
             } else { attachHtml = '<li class="list-group-item text-muted small fst-italic px-2">Tidak ada lampiran.</li>'; }
             document.getElementById('attachmentList').innerHTML = attachHtml;
 
+            // RENDER CHAT HISTORY
             let html = '';
             if(data.comments && data.comments.length > 0) {
                 data.comments.forEach(c => {
-                    html += `<div class="d-flex mb-3"><div class="avatar avatar-xs me-2"><img src="${c.user.avatar ? '/storage/'+c.user.avatar : '/assets/img/avatars/1.png'}" class="rounded-circle"></div><div class="flex-grow-1"><div class="bg-white p-2 rounded shadow-sm border"><div class="d-flex justify-content-between align-items-center mb-1"><small class="fw-bold text-primary">${c.user.name}</small><small class="text-muted" style="font-size:10px;">${new Date(c.created_at).toLocaleString()}</small></div><p class="mb-0 small text-dark">${c.content}</p></div></div></div>`;
+                    let isMe = String(c.user.id) === String(userId);
+                    
+                    if(isMe) {
+                        // Tampilan Chat Saya (Kanan - Biru)
+                        html += `
+                        <div class="d-flex mb-3 justify-content-end">
+                            <div class="flex-grow-1 text-end">
+                                <div class="bg-primary text-white p-2 rounded shadow-sm d-inline-block text-start" style="max-width: 85%;">
+                                    <p class="mb-0 small">${c.content}</p>
+                                </div>
+                                <div class="small text-muted mt-1" style="font-size:10px;">${new Date(c.created_at).toLocaleString()}</div>
+                            </div>
+                        </div>`;
+                    } else {
+                        // Tampilan Chat Orang Lain (Kiri - Putih)
+                        html += `
+                        <div class="d-flex mb-3">
+                            <div class="avatar avatar-xs me-2">
+                                <img src="${c.user.avatar ? '/storage/'+c.user.avatar : '/assets/img/avatars/1.png'}" class="rounded-circle">
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="bg-white p-2 rounded shadow-sm border">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <small class="fw-bold text-primary">${c.user.name}</small>
+                                        <small class="text-muted" style="font-size:10px;">${new Date(c.created_at).toLocaleString()}</small>
+                                    </div>
+                                    <p class="mb-0 small text-dark">${c.content}</p>
+                                </div>
+                            </div>
+                        </div>`;
+                    }
                 });
             } else { html = '<div class="text-center small text-muted mt-3">Belum ada diskusi.</div>'; }
+            
             document.getElementById('commentList').innerHTML = html;
+            setTimeout(() => {
+                const list = document.getElementById('commentList');
+                list.scrollTop = list.scrollHeight;
+            }, 200);
         });
     };
 
@@ -411,11 +548,23 @@
         fetch(`/tasks/${currentTaskId}`, { method:"POST", headers:{'X-CSRF-TOKEN':csrfToken, 'Accept':'application/json'}, body:fd })
         .then(r=>r.json()).then(data => {
             btn.innerHTML = '<i class="bx bx-save"></i> Simpan'; btn.disabled = false;
-            // Update UI Depan
+            
             const card = document.getElementById(`card-task-${currentTaskId}`);
             if(card) {
                 card.querySelector('.task-title').innerText = fd.get('title');
-                // (Optional: Update badge priority manual here if needed)
+                
+                const priority = fd.get('priority');
+                const badge = card.querySelector('.badge');
+                badge.className = 'badge rounded-pill'; // Reset class
+                
+                if(priority === 'high') badge.classList.add('bg-label-danger');
+                else if(priority === 'medium') badge.classList.add('bg-label-warning');
+                else badge.classList.add('bg-label-info');
+                
+                badge.innerText = priority.toUpperCase();
+                
+                card.classList.remove('priority-high', 'priority-medium', 'priority-low');
+                card.classList.add('priority-' + priority);
             }
             showAlert("Berhasil disimpan!", "success");
         });
@@ -426,10 +575,20 @@
         if(!input.value.trim()) return;
         let fd = new FormData(); fd.append('content', input.value);
         
-        // Optimistic UI (Langsung tampil sebelum server respon)
         let list = document.getElementById('commentList');
         if(list.innerText.includes('Belum ada diskusi')) list.innerHTML = '';
-        let myHtml = `<div class="d-flex mb-3 justify-content-end"><div class="flex-grow-1 text-end"><div class="bg-primary text-white p-2 rounded shadow-sm d-inline-block text-start" style="max-width: 80%;"><p class="mb-0 small">${input.value}</p></div></div></div>`;
+        
+        // OPTIMISTIC UI: Langsung tampilkan chat "Saya" di kanan (Biru)
+        let myHtml = `
+            <div class="d-flex mb-3 justify-content-end animate__animated animate__fadeIn">
+                <div class="flex-grow-1 text-end">
+                    <div class="bg-primary text-white p-2 rounded shadow-sm d-inline-block text-start" style="max-width: 85%;">
+                        <p class="mb-0 small">${input.value}</p>
+                    </div>
+                    <div class="small text-muted mt-1" style="font-size:10px;">Baru saja</div>
+                </div>
+            </div>`;
+            
         list.insertAdjacentHTML('beforeend', myHtml);
         list.scrollTop = list.scrollHeight;
         input.value = '';

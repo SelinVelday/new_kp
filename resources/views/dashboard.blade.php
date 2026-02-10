@@ -27,7 +27,6 @@
                 <div class="card-body">
                     <h4 class="card-title text-primary fw-bold">Halo, {{ Auth::user()->name }}! 🚀</h4>
                     <p class="mb-4 text-muted">
-                        {{-- PERBAIKAN: Tambahkan null coalescing operator (?? 0) untuk keamanan --}}
                         Kamu memiliki <span class="fw-bold text-dark">{{ $projects ? $projects->count() : 0 }} project aktif</span>. Cek tugas prioritasmu di bagian bawah.
                     </p>
                     <button class="btn btn-primary btn-sm px-3" data-bs-toggle="modal" data-bs-target="#createProjectModal">
@@ -50,92 +49,92 @@
     <div class="row g-4 mb-5">
         @forelse($projects as $project)
         <div class="col-md-6 col-lg-4">
-            <div class="card h-100 shadow-sm border-0 hover-card">
-                <div class="card-body d-flex flex-column">
-                    
-                    {{-- HEADER: Badge & Menu --}}
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <span class="badge bg-label-primary px-2 rounded">P-{{ $project->id }}</span>
-                        <div class="dropdown">
-                            <button class="btn p-0 text-muted" type="button" data-bs-toggle="dropdown" style="position: relative; z-index: 10;">
-                                <i class="bx bx-dots-vertical-rounded"></i>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                <li><a class="dropdown-item" href="{{ route('projects.show', $project->id) }}">Lihat Detail</a></li>
-                                <li>
-                                    <form action="{{ route('projects.destroy', $project->id) }}" method="POST" onsubmit="return confirm('Hapus project ini?')">
-                                        @csrf @method('DELETE')
-                                        <button type="submit" class="dropdown-item text-danger">Hapus</button>
-                                    </form>
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-
-                    {{-- JUDUL PROJECT --}}
-                    <h5 class="card-title mb-1">
-                        <a href="{{ route('projects.show', $project->id) }}" class="text-primary fw-bold text-decoration-none stretched-link" style="font-size: 1.1rem;">
-                            {{ $project->name }}
-                        </a>
-                    </h5>
-                    
-                    {{-- DESKRIPSI --}}
-                    <p class="card-text text-muted small mb-0 text-truncate">
-                        {{ $project->description ?? 'Tidak ada deskripsi.' }}
-                    </p>
-
-                    {{-- PROGRESS BAR --}}
-                    <div class="mt-3 position-relative" style="z-index: 2;">
-                        <div class="d-flex justify-content-between align-items-end mb-1">
-                            <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.5px;">Progress</small>
-                            <small class="fw-bold text-primary" style="font-size: 0.75rem;">
-                                {{ $project->progress['done'] ?? 0 }} / {{ $project->progress['total'] ?? 0 }} Task
-                            </small>
-                        </div>
-                        <div class="progress bg-light" style="height: 6px; border-radius: 10px;">
-                            <div class="progress-bar bg-primary" role="progressbar" 
-                                 style="width: {{ $project->progress['percentage'] ?? 0 }}%; border-radius: 10px;" 
-                                 aria-valuenow="{{ $project->progress['percentage'] ?? 0 }}" 
-                                 aria-valuemin="0" 
-                                 aria-valuemax="100">
+            {{-- Menggunakan tag A sebagai wrapper agar seluruh kartu bisa diklik --}}
+            <a href="{{ route('projects.show', $project->id) }}" class="text-decoration-none text-dark">
+                <div class="card h-100 shadow-sm border-0 hover-card">
+                    <div class="card-body d-flex flex-column">
+                        
+                        {{-- HEADER: Badge & Menu --}}
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="badge bg-label-primary px-2 rounded">P-{{ $project->id }}</span>
+                            <div class="dropdown">
+                                {{-- Stop propagation agar klik menu tidak memicu link project --}}
+                                <button class="btn p-0 text-muted" type="button" data-bs-toggle="dropdown" onclick="event.preventDefault(); event.stopPropagation();">
+                                    <i class="bx bx-dots-vertical-rounded"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a class="dropdown-item" href="{{ route('projects.show', $project->id) }}">Lihat Detail</a></li>
+                                    <li>
+                                        <form action="{{ route('projects.destroy', $project->id) }}" method="POST" onsubmit="return confirm('Hapus project ini?');">
+                                            @csrf @method('DELETE')
+                                            <button type="submit" class="dropdown-item text-danger">Hapus</button>
+                                        </form>
+                                    </li>
+                                </ul>
                             </div>
                         </div>
-                    </div>
-                    
-                    <hr class="my-4 border-light">
 
-                    {{-- FOOTER: AVATAR MEMBER --}}
-                    <div class="mt-auto">
-                        <div class="d-flex align-items-center gap-1">
-                            @foreach($project->members->take(3) as $member)
-                            <div class="avatar avatar-xs avatar-interactive" 
-                                 data-bs-toggle="tooltip" 
-                                 data-bs-placement="top" 
-                                 title="{{ $member->name }}">
-                                 
-                                {{-- GANTI DENGAN ACCESSOR user->avatar_url JIKA ADA --}}
-                                @if($member->avatar)
-                                    <img src="{{ asset('storage/'.$member->avatar) }}" alt="{{ $member->name }}" class="rounded-circle" style="object-fit: cover;">
-                                @else
-                                    <span class="avatar-initial rounded-circle bg-label-secondary text-secondary" style="font-size: 0.7rem;">
-                                        {{ substr($member->name, 0, 1) }}
-                                    </span>
+                        {{-- JUDUL PROJECT --}}
+                        <h5 class="card-title mb-1 text-primary fw-bold" style="font-size: 1.1rem;">
+                            {{ $project->name }}
+                        </h5>
+                        
+                        {{-- DESKRIPSI --}}
+                        <p class="card-text text-muted small mb-0 text-truncate">
+                            {{ $project->description ?? 'Tidak ada deskripsi.' }}
+                        </p>
+
+                        {{-- PROGRESS BAR --}}
+                        <div class="mt-3 position-relative" style="z-index: 2;">
+                            <div class="d-flex justify-content-between align-items-end mb-1">
+                                <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.5px;">Progress</small>
+                                <small class="fw-bold text-primary" style="font-size: 0.75rem;">
+                                    {{ $project->progress['done'] ?? 0 }} / {{ $project->progress['total'] ?? 0 }} Task
+                                </small>
+                            </div>
+                            <div class="progress bg-light" style="height: 6px; border-radius: 10px;">
+                                <div class="progress-bar bg-primary" role="progressbar" 
+                                     style="width: {{ $project->progress['percentage'] ?? 0 }}%; border-radius: 10px;" 
+                                     aria-valuenow="{{ $project->progress['percentage'] ?? 0 }}" 
+                                     aria-valuemin="0" 
+                                     aria-valuemax="100">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <hr class="my-4 border-light">
+
+                        {{-- FOOTER: AVATAR MEMBER --}}
+                        <div class="mt-auto">
+                            <div class="d-flex align-items-center gap-1">
+                                @foreach($project->members->take(3) as $member)
+                                <div class="avatar avatar-xs avatar-interactive" 
+                                     data-bs-toggle="tooltip" 
+                                     data-bs-placement="top" 
+                                     title="{{ $member->name }}">
+                                    @if($member->avatar)
+                                        <img src="{{ asset('storage/'.$member->avatar) }}" alt="{{ $member->name }}" class="rounded-circle" style="object-fit: cover;">
+                                    @else
+                                        <span class="avatar-initial rounded-circle bg-label-secondary text-secondary" style="font-size: 0.7rem;">
+                                            {{ substr($member->name, 0, 1) }}
+                                        </span>
+                                    @endif
+                                </div>
+                                @endforeach
+                                
+                                @if($project->members->count() > 3)
+                                    <div class="avatar avatar-xs avatar-interactive" data-bs-toggle="tooltip" title="{{ $project->members->count() - 3 }} Anggota Lainnya">
+                                        <span class="avatar-initial rounded-circle bg-label-secondary text-secondary" style="font-size: 0.6rem;">
+                                            +{{ $project->members->count() - 3 }}
+                                        </span>
+                                    </div>
                                 @endif
                             </div>
-                            @endforeach
-                            
-                            @if($project->members->count() > 3)
-                                <div class="avatar avatar-xs avatar-interactive" data-bs-toggle="tooltip" title="{{ $project->members->count() - 3 }} Anggota Lainnya">
-                                    <span class="avatar-initial rounded-circle bg-label-secondary text-secondary" style="font-size: 0.6rem;">
-                                        +{{ $project->members->count() - 3 }}
-                                    </span>
-                                </div>
-                            @endif
                         </div>
-                    </div>
 
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         @empty
         <div class="col-12">
